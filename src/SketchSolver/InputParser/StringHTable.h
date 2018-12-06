@@ -213,7 +213,7 @@ public:
 		}else{
 			bucket<T>* tt = t;
 			while(tt != NULL){
-				if(tt->hash < idx){
+				if(idx > tt->hash){
 					if(tt->left == NULL){										
 						return false;
 					}else{
@@ -297,7 +297,7 @@ public:
 		}else{
 			bucket<T>* tt = t;
 			while(tt != NULL){
-				if(tt->hash < idx){
+				if(idx > tt->hash){
 					if(tt->left == NULL){
 						char* nkey = store.newObj(len+1);
 						strncpy(nkey, key, len+1);
