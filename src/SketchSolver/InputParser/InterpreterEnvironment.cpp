@@ -8,7 +8,7 @@
 #include "ArithmeticExpressionBuilder.h"
 #include "SwapperPredicateBuilder.h"
 #include "DeductiveSolver.h"
-
+#include <numeric>
 
 #ifdef CONST
 #undef CONST
@@ -688,7 +688,269 @@ void InterpreterEnvironment::fixes(const string& holename) {
 	holesToHardcode[pos-1].push_back(holename);
 }
 
+class FunVisitor : public NodeVisitor {
+    std::function<void(bool_node&)> f;
+public:
+    FunVisitor(std::function<void(bool_node&)> g) : f(g) {}
+    void visitArith(arith_node& n) override { f(n); }
+    void visitBool ( bool_node& n) override { f(n); }
+};
 
+class ParentVisitor : public NodeVisitor {
+    NodeVisitor &visitor;
+public:
+    template<typename Visitor>
+    ParentVisitor(Visitor &&v) : visitor(v) {}
+    void visitArith(arith_node& n) override {
+        if (n.mother != nullptr) n.mother->accept(visitor);
+        if (n.father != nullptr) n.father->accept(visitor);
+        for(auto m : n.multi_mother) m->accept(visitor);
+    }
+
+    void visitBool(bool_node& n) override {
+        if (n.mother != nullptr) n.mother->accept(visitor);
+        if (n.father != nullptr) n.father->accept(visitor);
+    }
+};
+
+class NodeTraverser : public NodeVisitor {
+    std::set<bool_node*> visited;
+
+    void go(bool_node& n) {
+        if (visited.count(&n) == 0) {
+            visited.insert(&n);
+            pre(n);
+            n.accept(ParentVisitor(*this));
+            post(n);
+        }
+    }
+protected:
+    void visitArith(arith_node& n) override { go(n); }
+    void visitBool(bool_node& n) override { go(n); }
+    virtual void pre(bool_node &) {};
+    virtual void post(bool_node &) {};
+};
+
+struct CloneTraverser : public NodeTraverser {
+    std::map<bool_node*, bool_node*> replacements;
+    BooleanDAGCreator *bd;
+    CloneTraverser(BooleanDAGCreator *bd) : bd(bd) {
+        replacements[nullptr] = nullptr;
+    }
+    void post(bool_node &n) override {
+        if (replacements.count(&n) == 0) {
+            bool_node *bn = n.clone();
+            bool_node *mn = replacements[n.mother];
+            bool_node *fn = replacements[n.father];
+            arith_node *an = dynamic_cast<arith_node*>(bn);
+            if(an) {
+                arith_node &m = dynamic_cast<arith_node&>(n);
+                an->multi_mother.reserve(m.multi_mother.size());
+                for(bool_node *mm : m.multi_mother)
+                    an->multi_mother.push_back(replacements[mm]);
+            }
+            replacements[&n] = bd->new_node(mn, fn, bn);
+        }
+    }
+    void visit(SRC_node &n) override {
+        replacements[&n] = bd->get_node(n.lid());
+    }
+    void visit(CTRL_node &n) override {
+        CTRL_node *cn = dynamic_cast<CTRL_node*>(bd->create_controls(
+            n.getOtype() == OutType::BOOL ? -1 : n.get_nbits(), n.lid(), n.get_toMinimize(), n.spAngelic, n.is_sp_concretize(), n.max, n.isFloat));
+        cn->setParents(n.parents);
+        replacements[&n] = cn;
+    }
+    void visit(CONST_node &n) override {
+        replacements[&n] = n.isFloat() ? bd->create_const(n.getFval()) : bd->create_const(n.getVal());
+    }
+};
+
+void InterpreterEnvironment::rewriteUninterpretedMocks() {
+    // Phase 0: identify the methods that will be mocked, and the methods that will
+    // be analyzed to produce those mocks.
+    std::queue<std::string> worklist;
+    for (auto pair : spskpairs) {
+        Assert(pair.file.size() == 0,
+               "angelic mocks do not support files");
+        auto spec = functionMap.find(pair.spec), sketch = functionMap.find(pair.sketch);
+        Assert(spec   == functionMap.end() || spec->second->assertions.head == nullptr,
+               "angelic mocks do not support function equivalence");
+        Assert(sketch == functionMap.end() || sketch->second->getNodesByType(bool_node::SRC).size() == 0,
+               "angelic mocks do not yet support quantified inputs");
+        worklist.push(pair.sketch);
+    }
+
+    std::vector<ASSERT_node*> asserts;
+    std::set<std::string> visited;
+    while (!worklist.empty()) {
+        auto fun_name = worklist.front();
+        worklist.pop();
+        if (visited.count(fun_name) > 0) {
+            continue;
+        }
+        visited.insert(fun_name);
+
+        auto fun = functionMap.find(fun_name);
+        if (fun != functionMap.end()) {
+            for (auto node = fun->second->assertions.head; node != nullptr; node = node->next) {
+                if(isUFUN(node)) {
+                    worklist.push(dynamic_cast<UFUN_node*>(node)->get_ufname());
+                } else {
+                    ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
+                    if(an && an->isNormal()) {
+                        asserts.push_back(an);
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 1: convert all harness asserts to facts.
+    struct FundUfuns : public NodeTraverser {
+        std::map<bool_node*, std::set<UFUN_node*> > ufuns;
+        void post(bool_node &n) override {
+            n.accept(ParentVisitor(FunVisitor([&](bool_node &m) {
+                auto ufuns_m = ufuns.find(&m);
+                if (ufuns_m != ufuns.end()) {
+                    for (auto ufun_m : ufuns_m->second)
+                        ufuns[&n].insert(ufun_m);
+                }
+            })));
+        }
+
+        void visit(UFUN_node &n) override {
+            if (ufuns.count(&n) == 0) {
+                ufuns[&n].insert(&n);
+                NodeTraverser::visit(n);
+            }
+        }
+    } findUfuns;
+    for (auto an : asserts) {
+        an->accept(findUfuns);
+    }
+    std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
+    for (auto an : asserts) {
+        auto ufs = findUfuns.ufuns.find(an);
+        if (ufs != findUfuns.ufuns.end()) {
+            for (auto uf : ufs->second) {
+                facts[uf->get_ufname()][uf].insert(an);
+            }
+        }
+    }
+    for (auto fact : facts) {
+        std::cout << fact.first << ": " << fact.second.size() << "\n";
+    }
+
+    // Phase 2: generate mocks.
+    // Invert assert body. Canonicalize body into the form `φ(f(e)(#PC))`
+    // where `f` is the mock, `φ` and `e` are formulas not depending on `f`.
+    // If the assert cannot be canonicalized, discard it.
+    //
+    // Convert into the form:  assert (#PC /\ args = e => φ(result))
+    //
+    // Finally, fall through to a fresh uninterpreted function.
+    auto freshFunctionName = [this](const std::string &base) {
+        std::string fresh = base;
+        for (int i = 0; functionMap.count(fresh) > 0; ++i) {
+            fresh = base + std::to_string(i);
+        }
+        return fresh;
+    };
+    std::map<std::string, std::string> mockMap;
+    for (auto fact : facts) {
+        const std::string &origName = fact.first;
+        const std::string &mockName = freshFunctionName(origName + "_mock");
+        mockMap[mockName] = origName;
+        BooleanDAGCreator *bd = newFunction(mockName, false);
+
+        auto orig = functionMap.find(origName), mock = functionMap.find(mockName);
+        Assert(orig != functionMap.end() && mock != functionMap.end(), "this should be impossible");
+        for (auto n : orig->second->getNodesByType(bool_node::SRC)) {
+            SRC_node *m = dynamic_cast<SRC_node*>(n);
+            bd->create_inputs(m->get_nbits(), m->getOtype(), m->lid(), m->getArrSz(), m->depth);
+        }
+        std::vector<bool_node*> prms = mock->second->getNodesByType(bool_node::SRC);
+
+        const std::string &uninterpName = freshFunctionName(origName + "_uninterp");
+        UFUN_node *result = new UFUN_node(uninterpName);
+        result->multi_mother.reserve(prms.size());
+        for (auto *p : prms) {
+            result->multi_mother.push_back(p);
+        }
+        result->outname = "";
+        result->fgid = 0;
+        result->set_nbits( 0 );
+        result = dynamic_cast<UFUN_node*>(bd->new_node(bd->create_const(1), nullptr, result));
+
+        for (auto n : orig->second->getNodesByType(bool_node::DST)) {
+            DST_node *m = dynamic_cast<DST_node*>(n);
+            if (m->mother == nullptr) {
+                bd->create_outputs(m->get_nbits(), m->lid());
+            } else {
+                bd->alias(m->lid(), result);
+            }
+        }
+
+        for (auto callSite : fact.second) {
+            UFUN_node *call = callSite.first;
+            result->set_tupleName(call->getTupleName());
+            for (ASSERT_node *assert : callSite.second) {
+                auto calls = findUfuns.ufuns.find(assert);
+                bool one_call = calls != findUfuns.ufuns.end() && calls->second.size() == 1;
+                if (one_call) {
+                    struct NoUfunCloner : public CloneTraverser {
+                        NoUfunCloner(BooleanDAGCreator *bd, bool_node *call, bool_node *result) : CloneTraverser(bd) {
+                            replacements[call] = result;
+                        }
+                        void visit(UFUN_node &) override {}
+                    } cloner(bd, call, result);
+                    ParentVisitor parentCloner(cloner);
+
+                    // Split in two at the call site
+                    call->accept(parentCloner);
+                    assert->accept(parentCloner);
+
+                    const std::vector<bool_node*> &args = call->multi_mother;
+                    Assert(prms.size() == args.size(), "this should be impossible");
+                    std::vector<bool_node*> eqs;
+                    eqs.reserve(prms.size());
+                    std::transform(prms.begin(), prms.end(), args.begin(), std::back_inserter(eqs), [&](bool_node *prm, bool_node *arg){
+                        return bd->new_node(prm, cloner.replacements[arg], bool_node::EQ);
+                    });
+                    bool_node *pCond = cloner.replacements[call->mother];
+                    bool_node *pred = std::accumulate(eqs.begin(), eqs.end(), pCond, [&](bool_node *acc, bool_node *n) {
+                        return bd->new_node(acc, n, bool_node::AND);
+                    });
+                    bool_node *not_pred = bd->new_node(pred, nullptr, bool_node::NOT);
+                    bool_node *cons = cloner.replacements[assert->mother];
+                    Assert(cons != nullptr, "cons must be non-null");
+                    bool_node *impl = bd->new_node(not_pred, cons, bool_node::OR);
+                    ASSERT_node *an = dynamic_cast<ASSERT_node*>(newNode(bool_node::ASSERT));
+                    an->makeAssume();
+                    an->setMsg(assert->getMsg());
+                    bd->new_node(impl, nullptr, an);
+                }
+            }
+        }
+        bd->finalize();
+        delete bd;
+    }
+
+    // Phase 3: replace calls with mocks.
+    struct RedirectUfun : public NodeVisitor {
+        std::map<std::string, std::string> mockMap;
+        void visit(UFUN_node &n) override {
+            n.modify_ufname(mockMap[n.get_ufname()]);
+        }
+    } redirectUfun;
+    std::vector<std::string> toRewrite;
+    for (auto fun : toRewrite) {
+        for (auto n : *functionMap[fun]) {
+            n->accept(redirectUfun);
+        }
+    }
+}
 
 
 int InterpreterEnvironment::doallpairs() {
@@ -696,6 +958,9 @@ int InterpreterEnvironment::doallpairs() {
 	if (howmany < 1 || !params.randomassign) { howmany = 1; }
 	SATSolver::SATSolverResult result = SATSolver::UNDETERMINED;
 
+    if(false) {
+        rewriteUninterpretedMocks();
+    }
 
 	// A dummy ctrl for inlining bound
 	CTRL_node* inline_ctrl = NULL;

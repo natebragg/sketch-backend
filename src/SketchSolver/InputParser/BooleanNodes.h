@@ -335,6 +335,7 @@ class bool_node{
     virtual string get_name() const;
     void set_layer(bool isRecursive);
     virtual void accept(NodeVisitor& visitor) =0;
+    void accept(NodeVisitor&& visitor) { accept(visitor); }
     virtual bool_node* clone(bool copyChildren = true)=0;
     virtual void printSubDAG(ostream& out, set<const bool_node* >& s)const;
     virtual void printSubDAG(ostream& out)const{

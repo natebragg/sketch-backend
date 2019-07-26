@@ -164,6 +164,7 @@ class InterpreterEnvironment
 	}
 
 	BooleanDAG* runOptims(BooleanDAG* result);
+	void rewriteUninterpretedMocks();
 
 public:
 	typedef enum { READY, UNSAT } STATUS;
