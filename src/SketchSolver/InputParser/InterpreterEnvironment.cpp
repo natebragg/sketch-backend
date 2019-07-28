@@ -861,7 +861,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     for (auto fact : facts) {
         const std::string &origName = fact.first;
         const std::string &mockName = freshFunctionName(origName + "_mock");
-        mockMap[mockName] = origName;
+        mockMap[origName] = mockName;
         BooleanDAGCreator *bd = newFunction(mockName, false);
 
         auto orig = functionMap.find(origName), mock = functionMap.find(mockName);
@@ -885,9 +885,8 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
         for (auto n : orig->second->getNodesByType(bool_node::DST)) {
             DST_node *m = dynamic_cast<DST_node*>(n);
-            if (m->mother == nullptr) {
-                bd->create_outputs(m->get_nbits(), m->lid());
-            } else {
+            bd->create_outputs(m->get_nbits(), m->lid());
+            if (m->mother != nullptr) {
                 bd->alias(m->lid(), result);
             }
         }
@@ -939,11 +938,14 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
     // Phase 3: replace calls with mocks.
     struct RedirectUfun : public NodeVisitor {
-        std::map<std::string, std::string> mockMap;
+        const std::map<std::string, std::string> &mockMap;
+        RedirectUfun(const std::map<std::string, std::string> &mm) : mockMap(mm) {}
         void visit(UFUN_node &n) override {
-            n.modify_ufname(mockMap[n.get_ufname()]);
+            auto it = mockMap.find(n.get_ufname());
+            if(it != mockMap.end())
+                n.modify_ufname(it->second);
         }
-    } redirectUfun;
+    } redirectUfun(mockMap);
     std::vector<std::string> toRewrite;
     for (auto fun : toRewrite) {
         for (auto n : *functionMap[fun]) {
