@@ -743,11 +743,8 @@ struct CloneTraverser : public NodeTraverser {
             bool_node *mn = replacements[n.mother];
             bool_node *fn = replacements[n.father];
             arith_node *an = dynamic_cast<arith_node*>(bn);
-            if(an) {
-                arith_node &m = dynamic_cast<arith_node&>(n);
-                an->multi_mother.reserve(m.multi_mother.size());
-                for(bool_node *mm : m.multi_mother)
-                    an->multi_mother.push_back(replacements[mm]);
+            for(int i = 0; an && i < an->multi_mother.size(); ++i) {
+                an->multi_mother[i] = replacements[an->multi_mother[i]];
             }
             replacements[&n] = bd->new_node(mn, fn, bn);
         }
