@@ -847,7 +847,16 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Finally, fall through to a fresh uninterpreted function.
     auto freshFunctionName = [this](const std::string &base) {
         std::string fresh = base;
-        for (int i = 0; functionMap.count(fresh) > 0; ++i) {
+        std::set<std::string> taken;
+        for (auto fun : functionMap) {
+            taken.insert(fun.first);
+            for (auto node = fun.second->assertions.head; node != nullptr; node = node->next) {
+                if(isUFUN(node)) {
+                    taken.insert(dynamic_cast<UFUN_node*>(node)->get_ufname());
+                }
+            }
+        }
+        for (int i = 0; taken.count(fresh) > 0; ++i) {
             fresh = base + std::to_string(i);
         }
         return fresh;
