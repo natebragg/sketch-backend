@@ -777,8 +777,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                "angelic mocks do not yet support quantified inputs");
         worklist.push(pair.sketch);
     }
-
-    std::vector<ASSERT_node*> asserts;
+    std::map<ASSERT_node*, std::string> asserts;
     std::set<std::string> visited;
     while (!worklist.empty()) {
         auto fun_name = worklist.front();
@@ -796,7 +795,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                 } else {
                     ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
                     if(an && an->isNormal()) {
-                        asserts.push_back(an);
+                        asserts[an] = fun_name;
                     }
                 }
             }
@@ -823,15 +822,17 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
         }
     } findUfuns;
-    for (auto an : asserts) {
-        an->accept(findUfuns);
+    for (auto asst : asserts) {
+        asst.first->accept(findUfuns);
     }
+    std::map<std::string, std::set<std::string> > preserveOriginal;
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
-    for (auto an : asserts) {
-        auto ufs = findUfuns.ufuns.find(an);
+    for (auto asst : asserts) {
+        auto ufs = findUfuns.ufuns.find(asst.first);
         if (ufs != findUfuns.ufuns.end()) {
             for (auto uf : ufs->second) {
-                facts[uf->get_ufname()][uf].insert(an);
+                preserveOriginal[asst.second].insert(uf->get_ufname());
+                facts[uf->get_ufname()][uf].insert(asst.first);
             }
         }
     }
@@ -939,11 +940,24 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             if(it != mockMap.end())
                 n.modify_ufname(it->second);
         }
-    } redirectUfun(mockMap);
-    std::vector<std::string> toRewrite;
-    for (auto fun : toRewrite) {
-        for (auto n : *functionMap[fun]) {
-            n->accept(redirectUfun);
+    };
+    for (auto f : functionMap) {
+        std::set<std::string> preserves;
+        auto po = preserveOriginal.find(f.first);
+        if (po != preserveOriginal.end()) {
+            preserves = po->second;
+        }
+        std::map<std::string, std::string> rewriteMap;
+        for (auto mm : mockMap) {
+            if (preserves.count(mm.first) == 0) {
+                rewriteMap.insert(mm);
+            }
+        }
+        if (rewriteMap.size() > 0) {
+            RedirectUfun redirectUfun(rewriteMap);
+            for (auto n : *f.second) {
+                n->accept(redirectUfun);
+            }
         }
     }
 }
