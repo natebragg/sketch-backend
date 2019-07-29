@@ -835,9 +835,6 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
         }
     }
-    for (auto fact : facts) {
-        std::cout << fact.first << ": " << fact.second.size() << "\n";
-    }
 
     // Phase 2: generate mocks.
     // Invert assert body. Canonicalize body into the form `φ(f(e)(#PC))`
