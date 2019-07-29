@@ -957,7 +957,7 @@ int InterpreterEnvironment::doallpairs() {
 	if (howmany < 1 || !params.randomassign) { howmany = 1; }
 	SATSolver::SATSolverResult result = SATSolver::UNDETERMINED;
 
-    if(false) {
+    if(params.mock) {
         rewriteUninterpretedMocks();
     }
 

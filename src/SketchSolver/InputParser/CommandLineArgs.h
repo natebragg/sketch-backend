@@ -96,6 +96,7 @@ class CommandLineArgs{
   typedef enum {CALLSITE, CALLNAME} BoundMode;
   BoundMode boundmode;
   bool symbolic;
+  bool mock;
 	CommandLineArgs(vector<string> args) {
 		char** argv = (char**)malloc(sizeof(char*) * args.size());
 		for(auto i = 0; i < args.size(); i++) {
@@ -177,6 +178,7 @@ class CommandLineArgs{
 	erSimEvalFName = "";
 	custIntSize = 5;
 	symbolic = true;
+    mock = false;
 	  for(int ii=0; ii<argc; ++ii){
         if (string(argv[ii]) == "--print-version") {
             //cout << "CEGIS version features: " << VERSION_INFO << endl;
@@ -609,6 +611,11 @@ class CommandLineArgs{
 	  input_idx = ii+2;
 	  continue;
 	}
+    if( string(argv[ii]) == "-mock" ){
+      mock = true;
+      input_idx = ii+1;
+      continue;
+    }
     if(argv[ii][0] == '-'){
       cout<<"Unknown flag "<<string(argv[ii])<<endl;
       input_idx = ii+1;
