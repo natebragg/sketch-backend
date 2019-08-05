@@ -868,6 +868,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         mockMap[origName] = mockName;
         BooleanDAGCreator *bd = newFunction(mockName, false);
 
+        Assert(!fact.second.empty(), "call sites cannot be empty");
+        const std::string &tupName = fact.second.begin()->first->getTupleName();
+
         auto orig = functionMap.find(origName), mock = functionMap.find(mockName);
         Assert(orig != functionMap.end() && mock != functionMap.end(), "this should be impossible");
         for (auto n : orig->second->getNodesByType(bool_node::SRC)) {
@@ -877,37 +880,45 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         std::vector<bool_node*> prms = mock->second->getNodesByType(bool_node::SRC);
 
         const std::string &uninterpName = freshFunctionName(origName + "_uninterp");
-        UFUN_node *result = new UFUN_node(uninterpName);
-        result->multi_mother.reserve(prms.size());
+        UFUN_node *call_uf = new UFUN_node(uninterpName);
+        call_uf->multi_mother.reserve(prms.size());
         for (auto *p : prms) {
-            result->multi_mother.push_back(p);
+            call_uf->multi_mother.push_back(p);
         }
-        result->outname = "";
-        result->fgid = 0;
-        result->set_nbits( 0 );
-        result = dynamic_cast<UFUN_node*>(bd->new_node(bd->create_const(1), nullptr, result));
+        call_uf->outname = "";
+        call_uf->fgid = 0;
+        call_uf->set_nbits( 0 );
+        call_uf->set_tupleName(tupName);
+        call_uf = dynamic_cast<UFUN_node*>(bd->new_node(bd->create_const(1), nullptr, call_uf));
 
         for (auto n : orig->second->getNodesByType(bool_node::DST)) {
             DST_node *m = dynamic_cast<DST_node*>(n);
             bd->create_outputs(m->get_nbits(), m->lid());
             if (m->mother != nullptr) {
-                bd->alias(m->lid(), result);
+                // models impose a syntactic restriction that necessitates repacking.
+                TUPLE_CREATE_node* result = new TUPLE_CREATE_node();
+                result->setName(tupName);
+                Tuple* tuple_type = dynamic_cast<Tuple*>(OutType::getTuple(tupName));
+                result->multi_mother.reserve(tuple_type->actSize);
+                for (int i = 0; i < tuple_type->actSize; ++i) {
+                    result->multi_mother.push_back(bd->new_node(call_uf, i));
+                }
+                bd->alias(m->lid(), bd->new_node(NULL, NULL, result));
             }
         }
 
         for (auto callSite : fact.second) {
             UFUN_node *call = callSite.first;
-            result->set_tupleName(call->getTupleName());
             for (ASSERT_node *assert : callSite.second) {
                 auto calls = findUfuns.ufuns.find(assert);
                 bool one_call = calls != findUfuns.ufuns.end() && calls->second.size() == 1;
                 if (one_call) {
                     struct NoUfunCloner : public CloneTraverser {
-                        NoUfunCloner(BooleanDAGCreator *bd, bool_node *call, bool_node *result) : CloneTraverser(bd) {
-                            replacements[call] = result;
+                        NoUfunCloner(BooleanDAGCreator *bd, bool_node *call, bool_node *call_uf) : CloneTraverser(bd) {
+                            replacements[call] = call_uf;
                         }
                         void visit(UFUN_node &) override {}
-                    } cloner(bd, call, result);
+                    } cloner(bd, call, call_uf);
                     ParentVisitor parentCloner(cloner);
 
                     // Split in two at the call site
