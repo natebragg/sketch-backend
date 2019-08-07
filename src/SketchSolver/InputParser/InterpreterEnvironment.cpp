@@ -787,6 +787,17 @@ public:
         return out->second;
     }
 
+    std::set<T> in(const T &dst) {
+        Assert(edges.find(dst) != edges.end(), "vertex not in graph");
+        std::set<T> in;
+        for (auto edge : edges) {
+            if (edge.second.count(dst) > 0) {
+                in.insert(edge.first);
+            }
+        }
+        return in;
+    }
+
     void bft(const T &start, std::function<void(const T&)> f) {
         std::queue<T> work;
         work.push(start);
@@ -885,13 +896,12 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     for (const auto &asst : asserts) {
         asst.first->accept(findUfuns);
     }
-    std::map<std::string, std::set<std::string> > preserveOriginal;
+    //       callee                call                 caller
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
     for (const auto &asst : asserts) {
         auto ufs = findUfuns.ufuns.find(asst.first);
         if (ufs != findUfuns.ufuns.end()) {
             for (auto uf : ufs->second) {
-                preserveOriginal[asst.second].insert(uf->get_ufname());
                 facts[uf->get_ufname()][uf].insert(asst.first);
             }
         }
@@ -1012,6 +1022,26 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     }
 
     // Phase 3: replace calls with mocks.
+
+    // The only things that need to be cloned are those that call something cloned.
+    // Mocks have already been cloned, now for everything that can reach a mock.
+    std::map<std::string, std::string> rewriteMap = mockMap;
+    std::queue<std::string> work;
+    for (const auto &mm : mockMap) {
+        work.push(mm.first);
+    }
+    while (!work.empty()) {
+        auto f = std::move(work.front());
+        work.pop();
+        for (const auto &caller : cg.in(f)) {
+            if (rewriteMap.count(caller) == 0) {
+                work.push(caller);
+                const std::string &mockName = freshFunctionName(caller + "_mock");
+                rewriteMap[caller] = mockName;
+            }
+        }
+    }
+
     struct RedirectUfun : public NodeVisitor {
         const std::map<std::string, std::string> &mockMap;
         RedirectUfun(const std::map<std::string, std::string> &mm) : mockMap(mm) {}
@@ -1020,25 +1050,39 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             if(it != mockMap.end())
                 n.modify_ufname(it->second);
         }
-    };
-    for (auto f : functionMap) {
-        std::set<std::string> preserves;
-        auto po = preserveOriginal.find(f.first);
-        if (po != preserveOriginal.end()) {
-            preserves = po->second;
+    } redirectUfun(rewriteMap);
+    for (const auto &rewrite : rewriteMap) {
+        const std::string &origName = rewrite.first;
+        const std::string &mockName = rewrite.second;
+        if (mockMap.count(origName) != 0) {
+            continue;
         }
-        std::map<std::string, std::string> rewriteMap;
-        for (auto mm : mockMap) {
-            if (preserves.count(mm.first) == 0) {
-                rewriteMap.insert(mm);
-            }
+        auto it = functionMap.find(origName);
+        Assert(it != functionMap.end(), "ufs should not be able to call anything");
+        BooleanDAG *mock = it->second->clone(mockName);
+        functionMap[mockName] = mock;
+        for (auto n : *mock) {
+            n->accept(redirectUfun);
         }
-        if (rewriteMap.size() > 0) {
-            RedirectUfun redirectUfun(rewriteMap);
-            for (auto n : *f.second) {
-                n->accept(redirectUfun);
-            }
+    }
+
+    std::vector<spskpair> newSpskpairs;
+    newSpskpairs.reserve(spskpairs.size() * 2);
+    for (const spskpair &pair : spskpairs) {
+        auto sketchRewrite = rewriteMap.find(pair.sketch);
+        auto specRewrite = rewriteMap.find(pair.spec);
+        if (sketchRewrite != rewriteMap.end()) {
+            const std::string &spec = specRewrite == rewriteMap.end() ? pair.spec : specRewrite->second;
+            newSpskpairs.emplace_back(spec, sketchRewrite->second);
         }
+    }
+    for (const spskpair &pair : spskpairs) {
+        newSpskpairs.push_back(pair);
+    }
+    spskpairs.clear();
+    spskpairs.reserve(newSpskpairs.size());
+    for (const spskpair &pair : newSpskpairs) {
+        spskpairs.push_back(pair);
     }
 
     if (params.verbosity > 8) {

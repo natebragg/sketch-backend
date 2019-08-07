@@ -1334,6 +1334,10 @@ void BooleanDAG::clone_nodes(vector<bool_node*>& nstore, Dllist* dl){
 
 
 BooleanDAG* BooleanDAG::clone(){
+	return clone(name);
+}
+
+BooleanDAG* BooleanDAG::clone(const std::string & name) {
 	Dout( cout<<" begin clone "<<endl );
 	BooleanDAG* bdag = new BooleanDAG(name, isModel);
 	relabel();

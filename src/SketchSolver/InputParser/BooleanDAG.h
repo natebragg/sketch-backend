@@ -232,6 +232,7 @@ Dllist assertions;
   void repOK();
 
   BooleanDAG* clone();
+  BooleanDAG* clone(const std::string &name);
   void clone_nodes(vector<bool_node*>& nstore, Dllist* dl=NULL);
 
   void print(ostream& out)const;
