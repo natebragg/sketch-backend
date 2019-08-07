@@ -840,7 +840,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // be analyzed to produce those mocks.
     std::map<ASSERT_node*, std::string> asserts;
     DirectedGraph<std::string> cg = callGraph(functionMap);
-    for (auto pair : spskpairs) {
+    for (const spskpair &pair : spskpairs) {
         Assert(pair.file.size() == 0,
                "angelic mocks do not support files");
         auto spec = functionMap.find(pair.spec), sketch = functionMap.find(pair.sketch);
@@ -882,12 +882,12 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
         }
     } findUfuns;
-    for (auto asst : asserts) {
+    for (const auto &asst : asserts) {
         asst.first->accept(findUfuns);
     }
     std::map<std::string, std::set<std::string> > preserveOriginal;
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
-    for (auto asst : asserts) {
+    for (const auto &asst : asserts) {
         auto ufs = findUfuns.ufuns.find(asst.first);
         if (ufs != findUfuns.ufuns.end()) {
             for (auto uf : ufs->second) {
@@ -908,7 +908,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     auto freshFunctionName = [this](const std::string &base) {
         std::string fresh = base;
         std::set<std::string> taken;
-        for (auto fun : functionMap) {
+        for (const auto &fun : functionMap) {
             taken.insert(fun.first);
             for (auto node = fun.second->assertions.head; node != nullptr; node = node->next) {
                 if(isUFUN(node)) {
@@ -922,7 +922,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         return fresh;
     };
     std::map<std::string, std::string> mockMap;
-    for (auto fact : facts) {
+    for (const auto &fact : facts) {
         const std::string &origName = fact.first;
         const std::string &mockName = freshFunctionName(origName + "_mock");
         mockMap[origName] = mockName;
@@ -967,7 +967,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
         }
 
-        for (auto callSite : fact.second) {
+        for (const auto &callSite : fact.second) {
             UFUN_node *call = callSite.first;
             for (ASSERT_node *assert : callSite.second) {
                 auto calls = findUfuns.ufuns.find(assert);
