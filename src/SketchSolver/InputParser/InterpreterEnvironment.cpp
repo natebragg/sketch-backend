@@ -774,11 +774,17 @@ public:
 
     template<typename U, typename V>
     void insert(U &&src, V &&dst) {
-        edges[std::forward<U>(src)].emplace(std::forward<V>(dst));
+        edges[std::forward<U>(src)].insert(std::forward<V>(dst));
     }
 
     int count(const T &vertex) {
         return edges.count(vertex);
+    }
+
+    std::set<T> out(const T &src) {
+        auto out = edges.find(src);
+        Assert(out != edges.end(), "vertex not in graph");
+        return out->second;
     }
 
     void bft(const T &start, std::function<void(const T&)> f) {
@@ -788,11 +794,10 @@ public:
         while (!work.empty()) {
             T src = std::move(work.front());
             work.pop();
+            std::set<T> srcOut = out(src);
             f(src);
-            auto out = edges.find(src);
-            Assert(out != edges.end(), "malformed graph");
             visited.insert(std::move(src));
-            for (const T &dst : out->second) {
+            for (const T &dst : srcOut) {
                 if (visited.count(dst) == 0) {
                     work.push(dst);
                 }
@@ -834,7 +839,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Phase 0: identify the methods that will be mocked, and the methods that will
     // be analyzed to produce those mocks.
     std::map<ASSERT_node*, std::string> asserts;
-    DirectedGraph<std::string> g = callGraph(functionMap);
+    DirectedGraph<std::string> cg = callGraph(functionMap);
     for (auto pair : spskpairs) {
         Assert(pair.file.size() == 0,
                "angelic mocks do not support files");
@@ -843,7 +848,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                "angelic mocks do not support function equivalence");
         Assert(sketch == functionMap.end() || sketch->second->getNodesByType(bool_node::SRC).size() == 0,
                "angelic mocks do not yet support quantified inputs");
-        g.bft(pair.sketch, [&](const std::string &f){
+        cg.bft(pair.sketch, [&](const std::string &f){
             auto fun = functionMap.find(f);
             if (fun == functionMap.end()) {
                 return;
