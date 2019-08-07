@@ -763,10 +763,78 @@ struct CloneTraverser : public NodeTraverser {
     }
 };
 
+template<typename T>
+class DirectedGraph {
+    std::map<T, std::set<T> > edges;
+public:
+    template<typename U>
+    void insert(U &&src) {
+        edges[std::forward<U>(src)];
+    }
+
+    template<typename U, typename V>
+    void insert(U &&src, V &&dst) {
+        edges[std::forward<U>(src)].emplace(std::forward<V>(dst));
+    }
+
+    int count(const T &vertex) {
+        return edges.count(vertex);
+    }
+
+    void bft(const T &start, std::function<void(const T&)> f) {
+        std::queue<T> work;
+        work.push(start);
+        std::set<T> visited;
+        while (!work.empty()) {
+            T src = std::move(work.front());
+            work.pop();
+            f(src);
+            auto out = edges.find(src);
+            Assert(out != edges.end(), "malformed graph");
+            visited.insert(std::move(src));
+            for (const T &dst : out->second) {
+                if (visited.count(dst) == 0) {
+                    work.push(dst);
+                }
+            }
+        }
+    }
+};
+
+DirectedGraph<std::string> callGraph(const std::map<std::string, BooleanDAG*> &functionMap) {
+    DirectedGraph<std::string> g;
+    std::queue<std::string> work;
+    for (auto fun : functionMap) {
+        work.push(fun.first);
+    }
+    while (!work.empty()) {
+        auto fun_name = std::move(work.front());
+        work.pop();
+        if (g.count(fun_name) > 0) {
+            continue;
+        }
+        g.insert(fun_name);
+
+        auto fun = functionMap.find(fun_name);
+        if (fun == functionMap.end()) {
+            continue;
+        }
+        for (auto node = fun->second->assertions.head; node != nullptr; node = node->next) {
+            if(isUFUN(node)) {
+                const std::string &call_name = dynamic_cast<UFUN_node*>(node)->get_ufname();
+                work.push(call_name);
+                g.insert(fun_name, call_name);
+            }
+        }
+    }
+    return g;
+}
+
 void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Phase 0: identify the methods that will be mocked, and the methods that will
     // be analyzed to produce those mocks.
-    std::queue<std::string> worklist;
+    std::map<ASSERT_node*, std::string> asserts;
+    DirectedGraph<std::string> g = callGraph(functionMap);
     for (auto pair : spskpairs) {
         Assert(pair.file.size() == 0,
                "angelic mocks do not support files");
@@ -775,31 +843,18 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                "angelic mocks do not support function equivalence");
         Assert(sketch == functionMap.end() || sketch->second->getNodesByType(bool_node::SRC).size() == 0,
                "angelic mocks do not yet support quantified inputs");
-        worklist.push(pair.sketch);
-    }
-    std::map<ASSERT_node*, std::string> asserts;
-    std::set<std::string> visited;
-    while (!worklist.empty()) {
-        auto fun_name = worklist.front();
-        worklist.pop();
-        if (visited.count(fun_name) > 0) {
-            continue;
-        }
-        visited.insert(fun_name);
-
-        auto fun = functionMap.find(fun_name);
-        if (fun != functionMap.end()) {
+        g.bft(pair.sketch, [&](const std::string &f){
+            auto fun = functionMap.find(f);
+            if (fun == functionMap.end()) {
+                return;
+            }
             for (auto node = fun->second->assertions.head; node != nullptr; node = node->next) {
-                if(isUFUN(node)) {
-                    worklist.push(dynamic_cast<UFUN_node*>(node)->get_ufname());
-                } else {
-                    ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
-                    if(an && an->isNormal()) {
-                        asserts[an] = fun_name;
-                    }
+                ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
+                if(an && an->isNormal()) {
+                    asserts[an] = f;
                 }
             }
-        }
+        });
     }
 
     // Phase 1: convert all harness asserts to facts.
