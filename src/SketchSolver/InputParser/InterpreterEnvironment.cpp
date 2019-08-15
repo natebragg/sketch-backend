@@ -761,12 +761,10 @@ DirectedGraph<std::string> callGraph(const std::map<std::string, BooleanDAG*> &f
         if (fun == functionMap.end()) {
             continue;
         }
-        for (auto node = fun->second->assertions.head; node != nullptr; node = node->next) {
-            if(isUFUN(node)) {
-                const std::string &call_name = dynamic_cast<UFUN_node*>(node)->get_ufname();
-                work.push(call_name);
-                g.insert(fun_name, call_name);
-            }
+        for (auto node : fun->second->getNodesByType(bool_node::UFUN)) {
+            const std::string &call_name = dynamic_cast<UFUN_node*>(node)->get_ufname();
+            work.push(call_name);
+            g.insert(fun_name, call_name);
         }
     }
     return g;
@@ -790,9 +788,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             if (fun == functionMap.end()) {
                 return;
             }
-            for (auto node = fun->second->assertions.head; node != nullptr; node = node->next) {
+            for (auto node : fun->second->getNodesByType(bool_node::ASSERT)) {
                 ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
-                if(an && an->isNormal()) {
+                if(an->isNormal()) {
                     asserts[an] = f;
                 }
             }
@@ -846,10 +844,8 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         std::set<std::string> taken;
         for (const auto &fun : functionMap) {
             taken.insert(fun.first);
-            for (auto node = fun.second->assertions.head; node != nullptr; node = node->next) {
-                if(isUFUN(node)) {
-                    taken.insert(dynamic_cast<UFUN_node*>(node)->get_ufname());
-                }
+            for (auto node : fun.second->getNodesByType(bool_node::UFUN)) {
+                taken.insert(dynamic_cast<UFUN_node*>(node)->get_ufname());
             }
         }
         for (int i = 0; taken.count(fresh) > 0; ++i) {
