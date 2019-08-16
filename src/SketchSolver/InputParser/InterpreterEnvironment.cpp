@@ -279,28 +279,30 @@ BooleanDAG* InterpreterEnvironment::prepareMiter(BooleanDAG* spec, BooleanDAG* s
     abstractNumericalPart(*sketch);
   }
 
-  bool ufReturnsAdt = false;
-  for (auto n : sketch->getNodesByType(bool_node::UFUN)) {
-    UFUN_node *un = dynamic_cast<UFUN_node*>(n);
-    const std::string &tupName = un->getTupleName();
-    Tuple* tuple_type = dynamic_cast<Tuple*>(OutType::getTuple(tupName));
-    for (int i = 0; i < tuple_type->actSize; i++) {
-      ufReturnsAdt = ufReturnsAdt || tuple_type->entries[i]->isTuple;
+  if(params.mock){
+    bool ufReturnsAdt = false;
+    for (auto n : sketch->getNodesByType(bool_node::UFUN)) {
+      UFUN_node *un = dynamic_cast<UFUN_node*>(n);
+      const std::string &tupName = un->getTupleName();
+      Tuple* tuple_type = dynamic_cast<Tuple*>(OutType::getTuple(tupName));
+      for (int i = 0; i < tuple_type->actSize && !ufReturnsAdt; i++) {
+        ufReturnsAdt = tuple_type->entries[i]->isTuple;
+      }
+      if (ufReturnsAdt) {
+          break;
+      }
+    }
+    if (ufReturnsAdt) {
+      /* Eliminates uninterpreted functions */
+      DagElimUFUN eufun;
+      eufun.process(*spec);
+
+      /* ufunSymmetry optimizes based on the following Assumption: -- In the sketch if you have uninterpreted functions it
+      can only call them with the parameters used in the spec */
+      if (params.ufunSymmetry) { eufun.stopProducingFuns(); }
+      eufun.process(*sketch);
     }
   }
-  
-  if(params.mock && ufReturnsAdt){
-		/* Eliminates uninterpreted functions */
-		DagElimUFUN eufun;
-		eufun.process(*spec);
-
-
-		/* ufunSymmetry optimizes based on the following Assumption: -- In the sketch if you have uninterpreted functions it
-		can only call them with the parameters used in the spec */
-		if (params.ufunSymmetry) { eufun.stopProducingFuns(); }
-		eufun.process(*sketch);
-
-	}
 
 	{
 		//Post processing to replace ufun inputs with tuple of src nodes.
