@@ -278,8 +278,18 @@ BooleanDAG* InterpreterEnvironment::prepareMiter(BooleanDAG* spec, BooleanDAG* s
     // TODO: what is the best place to have this
     abstractNumericalPart(*sketch);
   }
+
+  bool ufReturnsAdt = false;
+  for (auto n : sketch->getNodesByType(bool_node::UFUN)) {
+    UFUN_node *un = dynamic_cast<UFUN_node*>(n);
+    const std::string &tupName = un->getTupleName();
+    Tuple* tuple_type = dynamic_cast<Tuple*>(OutType::getTuple(tupName));
+    for (int i = 0; i < tuple_type->actSize; i++) {
+      ufReturnsAdt = ufReturnsAdt || tuple_type->entries[i]->isTuple;
+    }
+  }
   
-  if(false){
+  if(params.mock && ufReturnsAdt){
 		/* Eliminates uninterpreted functions */
 		DagElimUFUN eufun;
 		eufun.process(*spec);
