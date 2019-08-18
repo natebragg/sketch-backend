@@ -870,7 +870,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         const std::string &origName = fact.first;
         const std::string &mockName = freshFunctionName(origName + "_mock");
         mockMap[origName] = mockName;
-        BooleanDAGCreator *bd = newFunction(mockName, false);
+        BooleanDAGCreator *bd = newFunction(mockName, true);
 
         Assert(!fact.second.empty(), "call sites cannot be empty");
         const std::string &tupName = fact.second.begin()->first->getTupleName();
