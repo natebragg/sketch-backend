@@ -1048,9 +1048,9 @@ int InterpreterEnvironment::doallpairs() {
 	if (howmany < 1 || !params.randomassign) { howmany = 1; }
 	SATSolver::SATSolverResult result = SATSolver::UNDETERMINED;
 
-    if(params.mock) {
-        rewriteUninterpretedMocks();
-    }
+	if(params.mock) {
+		rewriteUninterpretedMocks();
+	}
 
 	// A dummy ctrl for inlining bound
 	CTRL_node* inline_ctrl = NULL;
