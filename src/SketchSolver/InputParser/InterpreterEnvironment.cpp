@@ -876,7 +876,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         const std::string &tupName = fact.second.begin()->first->getTupleName();
 
         auto orig = functionMap.find(origName), mock = functionMap.find(mockName);
-        Assert(orig != functionMap.end() && mock != functionMap.end(), "this should be impossible");
+        Assert(orig != functionMap.end() && mock != functionMap.end(), "mocked functions cannot be uninterpreted.");
         for (auto n : orig->second->getNodesByType(bool_node::SRC)) {
             SRC_node *m = dynamic_cast<SRC_node*>(n);
             bd->create_inputs(m->get_nbits(), m->getOtype(), m->lid(), m->getArrSz(), m->depth);
@@ -930,7 +930,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                     assert->accept(parentCloner);
 
                     const std::vector<bool_node*> &args = call->multi_mother;
-                    Assert(prms.size() == args.size(), "this should be impossible");
+                    Assert(prms.size() == args.size(), "parameter argument arity mismatch.");
                     std::vector<bool_node*> eqs;
                     eqs.reserve(prms.size());
                     std::transform(prms.begin(), prms.end(), args.begin(), std::back_inserter(eqs), [&](bool_node *prm, bool_node *arg){
