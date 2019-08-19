@@ -959,67 +959,66 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
     // The only things that need to be cloned are those that call something cloned.
     // Mocks have already been cloned, now for everything that can reach a mock.
-    std::map<std::string, std::string> rewriteMap = mockMap;
-    std::queue<std::string> work;
-    for (const auto &mm : mockMap) {
-        work.push(mm.first);
-    }
-    while (!work.empty()) {
-        auto f = std::move(work.front());
-        work.pop();
-        for (const auto &caller : cg.in(f)) {
-            if (rewriteMap.count(caller) == 0) {
-                work.push(caller);
-                const std::string &mockName = freshFunctionName(caller + "_mock");
-                rewriteMap[caller] = mockName;
-            }
-        }
-    }
-
     struct RedirectUfun : public NodeVisitor {
-        const std::map<std::string, std::string> &mockMap;
-        RedirectUfun(const std::map<std::string, std::string> &mm) : mockMap(mm) {}
+        std::map<std::string, std::string> renames;
         void visit(UFUN_node &n) override {
-            auto it = mockMap.find(n.get_ufname());
-            if(it != mockMap.end())
+            auto it = renames.find(n.get_ufname());
+            if(it != renames.end())
                 n.modify_ufname(it->second);
         }
-    } redirectUfun(rewriteMap);
-    for (const auto &rewrite : rewriteMap) {
-        const std::string &origName = rewrite.first;
-        const std::string &mockName = rewrite.second;
-        if (mockMap.count(origName) != 0) {
-            continue;
+    } redirect;
+    redirect.renames = mockMap;
+    std::vector<spskpair> newSpskpairs;
+    int mockDepth = 3; // 3 covers harnesses directly calling mocks and those once-removed.
+    std::stringstream mockLog;
+    for (int i = 0; i < mockDepth; ++i) {
+        mockLog << "mockDepth " << i;
+        std::map<std::string, std::string> renamesPrime;
+        for (const auto &rewrite : redirect.renames) {
+            const std::string &origName = rewrite.first;
+            mockLog << " " << origName << " <- {";
+            for (const auto &caller : cg.in(origName)) {
+                mockLog << caller;
+                if (renamesPrime.count(caller) == 0) {
+                    std::string mockCaller = freshFunctionName(caller + "_mock");
+                    mockLog << " ~ " << mockCaller;
+                    auto it = functionMap.find(caller);
+                    Assert(it != functionMap.end(), "ufs should not be able to call anything");
+                    BooleanDAG *mock = it->second->clone(mockCaller);
+                    functionMap[mockCaller] = mock;
+                    for (auto n : *mock) {
+                        n->accept(redirect);
+                    }
+                    renamesPrime[caller] = std::move(mockCaller);
+                }
+                mockLog << ", ";
+            }
+            mockLog << "}";
         }
-        auto it = functionMap.find(origName);
-        Assert(it != functionMap.end(), "ufs should not be able to call anything");
-        BooleanDAG *mock = it->second->clone(mockName);
-        functionMap[mockName] = mock;
-        for (auto n : *mock) {
-            n->accept(redirectUfun);
+        for (const spskpair &pair : spskpairs) {
+            auto sketchRewrite = renamesPrime.find(pair.sketch);
+            auto specRewrite = renamesPrime.find(pair.spec);
+            if (sketchRewrite != renamesPrime.end()) {
+                const std::string &spec = specRewrite == renamesPrime.end() ? pair.spec : specRewrite->second;
+                mockLog << "; (" << spec << ", " << sketchRewrite->second << ")";
+                newSpskpairs.emplace_back(spec, sketchRewrite->second);
+            }
         }
+        redirect.renames = std::move(renamesPrime);
+        mockLog << "\n";
     }
 
-    std::vector<spskpair> newSpskpairs;
-    newSpskpairs.reserve(spskpairs.size() * 2);
-    for (const spskpair &pair : spskpairs) {
-        auto sketchRewrite = rewriteMap.find(pair.sketch);
-        auto specRewrite = rewriteMap.find(pair.spec);
-        if (sketchRewrite != rewriteMap.end()) {
-            const std::string &spec = specRewrite == rewriteMap.end() ? pair.spec : specRewrite->second;
-            newSpskpairs.emplace_back(spec, sketchRewrite->second);
-        }
-    }
     for (const spskpair &pair : spskpairs) {
         newSpskpairs.push_back(pair);
     }
     spskpairs.clear();
     spskpairs.reserve(newSpskpairs.size());
-    for (const spskpair &pair : newSpskpairs) {
-        spskpairs.push_back(pair);
+    for (spskpair &pair : newSpskpairs) {
+        spskpairs.push_back(std::move(pair));
     }
 
     if (params.verbosity > 8) {
+        std::cout << mockLog.str();
         struct PrintTree : public NodeTraverser {
             std::string indent = "  ";
             void pre(bool_node &n) {
