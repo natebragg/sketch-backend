@@ -969,6 +969,16 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     } redirect;
     redirect.renames = mockMap;
     std::vector<spskpair> newSpskpairs;
+
+    // say you have f, g, a, hf, hg, ha, s.t.
+    //          f -> g, g -> f, hf -> f, hg -> g, a -> {f, g}, ha -> a
+    // depth 2: hf_mock -> f_mock; hg_mock -> g_mock; ha_mock -> a_mock
+    // depth 3: hf_mock2 -> f -> g_mock; hg_mock2 -> g -> f_mock;
+    //          ha_mock2 -> a -> {f_mock, g_mock}
+    // depth 3.5: ha_mock3 -> a -> {f -> g_mock, g_mock}
+    //            ha_mock4 -> a -> {f_mock, g -> f_mock}
+    // depth 4: hf_mock3 -> f -> g -> f_mock; hg_mock3 -> g -> f > g_mock;
+    //          ha_mock5 -> a -> {f -> g_mock, g -> f_mock}
     int mockDepth = 3; // 3 covers harnesses directly calling mocks and those once-removed.
     std::stringstream mockLog;
     for (int i = 0; i < mockDepth; ++i) {
