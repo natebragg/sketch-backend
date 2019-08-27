@@ -899,7 +899,8 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
         for (auto n : orig->second->getNodesByType(bool_node::DST)) {
             DST_node *m = dynamic_cast<DST_node*>(n);
-            bd->create_outputs(m->get_nbits(), m->lid());
+            int bits = m->getOtype() == OutType::INT ? m->get_nbits() : -1;
+            bd->create_outputs(bits, m->lid());
             if (m->mother != nullptr) {
                 // models impose a syntactic restriction that necessitates repacking.
                 TUPLE_CREATE_node* result = new TUPLE_CREATE_node();
