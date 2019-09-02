@@ -838,7 +838,10 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
     for (const auto &asst : asserts) {
         auto ufs = findUfuns.ufuns.find(asst.first);
-        if (ufs != findUfuns.ufuns.end()) {
+        // handling multiple calls in the same assert is complicated by
+        // interactions across mocks.
+        bool one_call = ufs != findUfuns.ufuns.end() && ufs->second.size() == 1;
+        if (one_call) {
             for (auto uf : ufs->second) {
                 facts[uf->get_ufname()][uf].insert(asst.first);
             }
