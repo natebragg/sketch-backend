@@ -812,7 +812,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     }
 
     // Phase 1: convert all harness asserts to facts.
-    struct FundUfuns : public NodeTraverser {
+    struct FindUfuns : public NodeTraverser {
         std::map<bool_node*, std::set<UFUN_node*> > ufuns;
         void post(bool_node &n) override {
             n.accept(ParentVisitor(FunVisitor([&](bool_node &m) {
@@ -843,7 +843,16 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         bool one_call = ufs != findUfuns.ufuns.end() && ufs->second.size() == 1;
         if (one_call) {
             for (auto uf : ufs->second) {
-                facts[uf->get_ufname()][uf].insert(asst.first);
+                // supporting asserts that depend on inputs requires handling
+                // alternating quantifiers.
+                struct AnySrc : public NodeTraverser {
+                    bool found = false;
+                    void visit(SRC_node &n) override { found = true; }
+                } anySrc;
+                uf->accept(anySrc);
+                if (!anySrc.found) {
+                    facts[uf->get_ufname()][uf].insert(asst.first);
+                }
             }
         }
     }
