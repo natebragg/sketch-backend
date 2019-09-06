@@ -453,9 +453,22 @@ void DagElimUFUN::process(BooleanDAG& dag){
 		bool_node* nn = dag[i];
 		if(nn->type == bool_node::UFUN){
 			UFUN_node* uf = (UFUN_node*)nn;
+			bool elim = false;
+			for(auto ret : dynamic_cast<Tuple*>(uf->getOtype())->entries) {
+				if( ret->isTuple || ret->isArr ){
+					elim = true;
+					break;
+				}
+			}
+			if (elim) {
+				ufunsToDo.insert(uf->get_ufname());
+				continue;
+			}
+
 			for(vector<bool_node*>::iterator it = uf->multi_mother.begin(); it != uf->multi_mother.end(); ++it){
 				if( (*it)->getOtype()->isArr ){
 					ufunsToDo.insert(uf->get_ufname());
+					break;
 				}
 			}
 		}
