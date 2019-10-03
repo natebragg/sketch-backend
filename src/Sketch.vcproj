@@ -457,6 +457,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SketchSolver\InputParser\Visitors.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SketchSolver\InputParser\Visitors.h"
+				>
+			</File>
+			<File
 				RelativePath=".\zchaff\zchaff_base.cpp"
 				>
 			</File>

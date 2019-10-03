@@ -27,7 +27,7 @@ void NodeVisitor::process(BooleanDAG& bdag){
 
 
 void NodeVisitor::visitArith(arith_node& node ){
-	rvalue = &node;
+	visitBool(node);
 }
 
 void NodeVisitor::visitBool(bool_node& node ){

@@ -295,6 +295,7 @@
     <ClCompile Include="SketchSolver\InputParser\NodeVisitor.cpp" />
     <ClCompile Include="SketchSolver\SolverInterfaces\SATSolver.cpp" />
     <ClCompile Include="SketchSolver\InputParser\SolveFromInput.cpp" />
+    <ClInclude Include="SketchSolver\InputParser\Visitors.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MiniSat\core\IntPropagator.h" />
@@ -363,6 +364,7 @@
     <ClInclude Include="SketchSolver\InputParser\NodeEvaluator.h" />
     <ClInclude Include="SketchSolver\InputParser\NodeSlicer.h" />
     <ClInclude Include="SketchSolver\InputParser\NodeStore.h" />
+    <ClInclude Include="SketchSolver\InputParser\Visitors.h" />
     <ClInclude Include="zchaff\SAT.h" />
     <ClInclude Include="zchaff\SAT_C.h" />
     <ClInclude Include="SketchSolver\InputParser\StringHTable.h" />
