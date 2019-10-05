@@ -34,9 +34,14 @@ void DeepClone::post(bool_node &n) {
 }
 
 bool_node *DeepClone::clone(bool_node *n) {
-    DeepClone dc;
-    n->accept(dc);
-    return dc.replacements[n];
+    return DeepClone{}.clone_node(n);
+}
+
+bool_node *DeepClone::clone_node(bool_node *n) {
+    if (replacements.count(n) == 0) {
+        n->accept(*this);
+    }
+    return replacements[n];
 }
 
 void CloneTraverser::post(bool_node &n) {

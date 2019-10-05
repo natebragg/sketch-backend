@@ -12,6 +12,7 @@ class FunVisitor : public NodeVisitor {
     std::function<void(bool_node&)> f;
 public:
     FunVisitor(std::function<void(bool_node&)> g) : f(g) {}
+protected:
     void visitBool ( bool_node& n) override { f(n); }
 };
 
@@ -20,30 +21,37 @@ class ParentVisitor : public NodeVisitor {
 public:
     template<typename Visitor>
     ParentVisitor(Visitor &&v) : visitor(v) {}
+protected:
     void visitArith(arith_node& n) override;
     void visitBool(bool_node& n) override;
 };
 
 class NodeTraverser : public NodeVisitor {
-    std::set<bool_node*> visited;
 protected:
+    std::set<bool_node*> visited;
     void visitBool(bool_node& n) override;
     virtual void pre(bool_node &) {};
     virtual void post(bool_node &) {};
 };
 
-struct DeepClone : public NodeTraverser {
+class DeepClone : public NodeTraverser {
+protected:
     std::map<bool_node*, bool_node*> replacements;
+public:
     DeepClone() {
         replacements[nullptr] = nullptr;
     }
-    void post(bool_node &n) override;
     static bool_node *clone(bool_node*);
+    bool_node *clone_node(bool_node*);
+protected:
+    void post(bool_node &n) override;
 };
 
-struct CloneTraverser : public DeepClone {
+class CloneTraverser : public DeepClone {
     BooleanDAGCreator *bd;
+public:
     CloneTraverser(BooleanDAGCreator *bd) : bd(bd) { }
+protected:
     void post(bool_node &n) override;
     void visit(SRC_node &n) override;
     void visit(CTRL_node &n) override;
