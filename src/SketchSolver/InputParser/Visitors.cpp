@@ -20,6 +20,16 @@ void NodeTraverser::visitBool(bool_node& n) {
     }
 }
 
+DeepDelete::~DeepDelete() {
+    for (bool_node *bn : visited) {
+        delete bn;
+    }
+}
+
+void DeepDelete::del(bool_node *n) {
+    n->accept(DeepDelete{});
+}
+
 void DeepClone::post(bool_node &n) {
     if (replacements.count(&n) == 0) {
         bool_node *bn = n.clone();

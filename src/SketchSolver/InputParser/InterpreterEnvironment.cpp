@@ -4,12 +4,14 @@
 #include "InputReader.h"
 #include "CallGraphAnalysis.h"
 #include "ComplexInliner.h"
+#include "DagElimQuant.h"
 #include "DagFunctionToAssertion.h"
 #include "InputReader.h" // INp yylex_init, yyparse, etc.
 #include "ArithmeticExpressionBuilder.h"
 #include "SwapperPredicateBuilder.h"
 #include "DeductiveSolver.h"
 #include <numeric>
+#include <iterator>
 
 #ifdef CONST
 #undef CONST
@@ -779,8 +781,6 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         auto spec = functionMap.find(pair.spec), sketch = functionMap.find(pair.sketch);
         Assert(spec   == functionMap.end() || spec->second->assertions.head == nullptr,
                "angelic mocks do not support function equivalence");
-        Assert(sketch == functionMap.end() || sketch->second->getNodesByType(bool_node::SRC).size() == 0,
-               "angelic mocks do not yet support quantified inputs");
         cg.bft(pair.sketch, [&](const std::string &f){
             auto fun = functionMap.find(f);
             if (fun == functionMap.end()) {
@@ -829,14 +829,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             for (auto uf : ufs->second) {
                 // supporting asserts that depend on inputs requires handling
                 // alternating quantifiers.
-                struct AnySrc : public NodeTraverser {
-                    bool found = false;
-                    void visit(SRC_node &n) override { found = true; }
-                } anySrc;
-                uf->accept(anySrc);
-                if (!anySrc.found) {
-                    facts[uf->get_ufname()][uf].insert(asst.first);
-                }
+                facts[uf->get_ufname()][uf].insert(asst.first);
             }
         }
     }
@@ -916,37 +909,45 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                 auto calls = findUfuns.ufuns.find(assert);
                 bool one_call = calls != findUfuns.ufuns.end() && calls->second.size() == 1;
                 if (one_call) {
-                    struct NoUfunCloner : public CloneTraverser {
-                        NoUfunCloner(BooleanDAGCreator *bd, bool_node *call, bool_node *call_uf) : CloneTraverser(bd) {
-                            replacements[call] = call_uf;
+                    struct NoUfunCloner : public DeepClone {
+                        NoUfunCloner(bool_node *call, bool_node *call_uf) {
+                            replacements[call] = clone(call_uf);
                         }
                         void visit(UFUN_node &) override {}
-                    } cloner(bd, call, call_uf);
-                    ParentVisitor parentCloner(cloner);
+                    } cloner(call, call_uf);
 
-                    // Split in two at the call site
-                    call->accept(parentCloner);
-                    assert->accept(parentCloner);
+                    // Clone assert body up to the call site
+                    bool_node *cons = cloner.clone_node(assert->mother);
 
                     const std::vector<bool_node*> &args = call->multi_mother;
                     Assert(prms.size() == args.size(), "parameter argument arity mismatch.");
                     std::vector<bool_node*> eqs;
                     eqs.reserve(prms.size());
                     std::transform(prms.begin(), prms.end(), args.begin(), std::back_inserter(eqs), [&](bool_node *prm, bool_node *arg){
-                        return bd->new_node(prm, cloner.replacements[arg], bool_node::EQ);
+                        return mkNode(bool_node::EQ, cloner.clone_node(prm), cloner.clone_node(arg));
                     });
-                    bool_node *pCond = cloner.replacements[call->mother];
+                    bool_node *pCond = cloner.clone_node(call->mother);
                     bool_node *pred = std::accumulate(eqs.begin(), eqs.end(), pCond, [&](bool_node *acc, bool_node *n) {
-                        return bd->new_node(acc, n, bool_node::AND);
+                        return mkNode(bool_node::AND, acc, n);
                     });
-                    bool_node *not_pred = bd->new_node(pred, nullptr, bool_node::NOT);
-                    bool_node *cons = cloner.replacements[assert->mother];
-                    Assert(cons != nullptr, "cons must be non-null");
-                    bool_node *impl = bd->new_node(not_pred, cons, bool_node::OR);
-                    ASSERT_node *an = dynamic_cast<ASSERT_node*>(newNode(bool_node::ASSERT));
-                    an->makeAssume();
-                    an->setMsg(assert->getMsg());
-                    bd->new_node(impl, nullptr, an);
+                    bool_node *not_pred = mkNode(bool_node::NOT, pred);
+                    bool_node *impl = mkNode(bool_node::OR, not_pred, cons);
+
+                    FreeIn freein;
+                    assert->mother->accept(freein);
+
+                    std::map<bool_node*, bool_node*> witnEqns;
+                    std::transform(prms.begin(), prms.end(), args.begin(), std::inserter(witnEqns, witnEqns.begin()), [&](bool_node *prm, bool_node *arg){
+                        return std::make_pair(cloner.clone_node(prm), cloner.clone_node(arg));
+                    });
+
+                    bool_node *implElim = elimQuant(freein.fvs[assert->mother], witnEqns, impl);
+                    bool_node *an = mkNode(bool_node::ASSERT, implElim);
+                    dynamic_cast<ASSERT_node*>(an)->makeAssume();
+                    dynamic_cast<ASSERT_node*>(an)->setMsg(assert->getMsg());
+                    an->accept(CloneTraverser(bd));
+                    DeepDelete::del(impl);
+                    DeepDelete::del(an);
                 }
             }
         }

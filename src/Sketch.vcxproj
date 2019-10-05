@@ -272,6 +272,7 @@
     <ClCompile Include="SketchSolver\InputParser\Checkpointer.cpp" />
     <ClCompile Include="SketchSolver\InputParser\ComplexInliner.cpp" />
     <ClCompile Include="SketchSolver\InputParser\DagCSE.cpp" />
+    <ClCompile Include="SketchSolver\InputParser\DagElimQuant.cpp" />
     <ClCompile Include="SketchSolver\InputParser\DagElimUFUN.cpp" />
     <ClCompile Include="SketchSolver\InputParser\DagFunctionInliner.cpp" />
     <ClCompile Include="SketchSolver\InputParser\DagFunctionToAssertion.cpp" />
@@ -327,6 +328,7 @@
     <ClInclude Include="SketchSolver\InputParser\BooleanDAG.h" />
     <ClInclude Include="SketchSolver\BooleanToCNF.h" />
     <ClInclude Include="SketchSolver\InputParser\DagCSE.h" />
+    <ClInclude Include="SketchSolver\InputParser\DagElimQuant.h" />
     <ClInclude Include="SketchSolver\InputParser\DagElimUFUN.h" />
     <ClInclude Include="SketchSolver\InputParser\DagFunctionInliner.h" />
     <ClInclude Include="SketchSolver\InputParser\DagOptim.h" />

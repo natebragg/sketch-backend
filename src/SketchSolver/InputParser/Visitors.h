@@ -34,6 +34,26 @@ protected:
     virtual void post(bool_node &) {};
 };
 
+class FunTraverser : public NodeTraverser {
+    std::function<void(bool_node&)> f;
+public:
+    enum class Order { Pre, Post };
+private:
+    Order order;
+public:
+    FunTraverser(Order o, std::function<void(bool_node&)> g)
+        : order(o), f(g) {}
+protected:
+    void pre  ( bool_node& n) override { if (order == Order::Pre)  f(n); }
+    void post ( bool_node& n) override { if (order == Order::Post) f(n); }
+};
+
+class DeepDelete : public NodeTraverser {
+public:
+    ~DeepDelete();
+    static void del(bool_node *n);
+};
+
 class DeepClone : public NodeTraverser {
 protected:
     std::map<bool_node*, bool_node*> replacements;

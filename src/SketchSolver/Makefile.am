@@ -38,6 +38,7 @@ noinst_HEADERS = $(SOLVER_HDRS)				\
 	InputParser/CommandLineArgs.h			\
 	InputParser/ComplexInliner.h \
 	InputParser/DagCSE.h				\
+	InputParser/DagElimQuant.h			\
 	InputParser/DagElimUFUN.h			\
 	InputParser/DagFunctionInliner.h		\
 	InputParser/DagFunctionToAssertion.h		\
@@ -82,6 +83,7 @@ libcegis_a_SOURCES =				\
 	InputParser/ComplexInliner.cpp \
 	InputParser/CommandLineArgs.cpp \
 	InputParser/DagCSE.cpp			\
+	InputParser/DagElimQuant.cpp	\
 	InputParser/DagElimUFUN.cpp		\
 	InputParser/DagFunctionInliner.cpp	\
 	InputParser/DagFunctionToAssertion.cpp	\

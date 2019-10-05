@@ -309,6 +309,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\SketchSolver\InputParser\DagElimQuant.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SketchSolver\InputParser\DagElimQuant.h"
+				>
+			</File>
+			<File
 				RelativePath=".\SketchSolver\InputParser\DagElimUFUN.cpp"
 				>
 			</File>
