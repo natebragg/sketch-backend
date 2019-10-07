@@ -81,17 +81,26 @@ static std::pair<bool_node*, bool_node*> theoryXform(
         }
 
         void visit(EQ_node &n) override {
-            // iff is associative and commutative
+            bool_node *equiv = nullptr, *rest = nullptr;
             if (fvs.at(n.mother).count(qName) == 0) {
-                lhs = mkNode(bool_node::EQ, DeepClone::clone(n.mother), lhs);
-                n.father->accept(*this);
+                equiv = n.mother;
+                rest = n.father;
             } else if (fvs.at(n.father).count(qName) == 0) {
-                lhs = mkNode(bool_node::EQ, lhs, DeepClone::clone(n.father));
-                n.mother->accept(*this);
+                equiv = n.father;
+                rest = n.mother;
             } else {
-                // qName is split 
+                // qName is split
                 clear();
+                return;
             }
+            if (equiv->getOtype() == OutType::BOOL) {
+                // iff on bools is associative and commutative
+                lhs = mkNode(bool_node::EQ, DeepClone::clone(equiv), lhs);
+            } else {
+                clear();
+                return;
+            }
+            rest->accept(*this);
         }
 
         void visit(SRC_node &n) override {
@@ -110,7 +119,7 @@ static std::pair<bool_node*, bool_node*> theoryXform(
                 lhs = mkNode(bool_node::PLUS, lhs, mkNode(bool_node::NEG, DeepClone::clone(n.father)));
                 n.mother->accept(*this);
             } else {
-                // qName is split 
+                // qName is split
                 clear();
             }
         }
@@ -127,8 +136,35 @@ static std::pair<bool_node*, bool_node*> theoryXform(
             Assert(false, "in theoryXform, ARRACC_R should have been rewritten");
         }
 
-        void visit(TIMES_node&) override {
-            lhs = nullptr;
+        void visit(TIMES_node &n) override {
+            bool_node *divisor = nullptr, *rest = nullptr;
+            if (fvs.at(n.mother).count(qName) == 0) {
+                divisor = n.mother;
+                rest = n.father;
+            } else if (fvs.at(n.father).count(qName) == 0) {
+                divisor = n.father;
+                rest = n.mother;
+            } else {
+                // qName is split
+                clear();
+                return;
+            }
+
+            divisor = DeepClone::clone(divisor);
+            lhs = mkNode(bool_node::DIV, lhs, divisor);
+            if (divisor->getOtype() == OutType::INT) {
+                CONST_node *zero = new CONST_node(0);
+                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
+                pre.push_back(mkNode(bool_node::EQ, zero, mkNode(bool_node::MOD, lhs, divisor)));
+            } else if (divisor->getOtype() == OutType::FLOAT) {
+                CONST_node *zero = new CONST_node(0.0);
+                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
+            } else {
+                // This should be impossible, but just in case...
+                clear();
+                return;
+            }
+            rest->accept(*this);
         }
 
         void visit(CTRL_node&) override {
@@ -145,26 +181,53 @@ static std::pair<bool_node*, bool_node*> theoryXform(
             n.mother->accept(*this);
         }
 
-        void visit(DIV_node&) override {
-            lhs = nullptr;
+        void visit(DIV_node &n) override {
+            if (n.getOtype() != OutType::FLOAT) {
+                clear();
+                return;
+            }
+
+            if (fvs.at(n.mother).count(qName) == 0) {
+                bool_node *dividend = DeepClone::clone(n.mother);
+                lhs = mkNode(bool_node::DIV, dividend, lhs);
+                CONST_node *zero = new CONST_node(0.0);
+                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, lhs)));
+                n.father->accept(*this);
+            } else if (fvs.at(n.father).count(qName) == 0) {
+                bool_node *divisor = DeepClone::clone(n.father);
+                lhs = mkNode(bool_node::TIMES, divisor, lhs);
+                CONST_node *zero = new CONST_node(0.0);
+                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
+                n.mother->accept(*this);
+            } else {
+                // qName is split
+                clear();
+                return;
+            }
         }
 
-        void visit(XOR_node&) override {
-            lhs = nullptr;
+        void visit(XOR_node &n) override {
+            // P <=> Q xor R   ->   (!P <=> Q) <=> R
+            if (fvs.at(n.mother).count(qName) == 0) {
+                lhs = mkNode(bool_node::EQ, DeepClone::clone(n.mother), mkNode(bool_node::NOT, lhs));
+                n.father->accept(*this);
+            } else if (fvs.at(n.father).count(qName) == 0) {
+                lhs = mkNode(bool_node::EQ, mkNode(bool_node::NOT, lhs), DeepClone::clone(n.father));
+                n.mother->accept(*this);
+            } else {
+                // qName is split
+                clear();
+            }
         }
 
         void visit(DST_node&) override {
             Assert(false, "in theoryXform, DST should be impossible");
         }
 
-        void visit(MOD_node&) override {
-            lhs = nullptr;
-        }
-
         void visitBool(bool_node&) override {
             // In the case of LT, AND, OR, UFUN, and ASSERT:
             //      Nothing reasonable can be transformed.
-            // For ARR_W, ARRASS, ARR_CREATE, TUPLE_CREATE, and ACTRL:
+            // For MOD, ARR_W, ARRASS, ARR_CREATE, TUPLE_CREATE, and ACTRL:
             //      Not sure what to do, but until then it's prudent to bail
             clear();
         }
