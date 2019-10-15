@@ -344,7 +344,7 @@ static std::pair<bool_node*, bool_node*> synth(
 }
 
 bool_node* elimQuant(
-        const std::set<std::string> &qNames,
+        std::set<std::string> qNames,
         std::map<bool_node*, bool_node*> witnEqns,
         bool_node *formulaBody
     )

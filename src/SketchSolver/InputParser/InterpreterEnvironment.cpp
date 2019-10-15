@@ -944,13 +944,15 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                         return std::make_pair(cloner.clone_node(prm), cloner.clone_node(arg));
                     });
 
-                    bool_node *implElim = elimQuant(freein.fvs[assert->mother], witnEqns, impl);
-                    bool_node *an = mkNode(bool_node::ASSERT, implElim);
-                    dynamic_cast<ASSERT_node*>(an)->makeAssume();
-                    dynamic_cast<ASSERT_node*>(an)->setMsg(assert->getMsg());
-                    an->accept(CloneTraverser(bd));
+                    bool_node *implElim = elimQuant(std::move(freein.fvs[assert->mother]), std::move(witnEqns), impl);
+                    if (implElim != nullptr) {
+                        bool_node *an = mkNode(bool_node::ASSERT, implElim);
+                        dynamic_cast<ASSERT_node*>(an)->makeAssume();
+                        dynamic_cast<ASSERT_node*>(an)->setMsg(assert->getMsg());
+                        an->accept(CloneTraverser(bd));
+                        DeepDelete::del(an);
+                    }
                     DeepDelete::del(impl);
-                    DeepDelete::del(an);
                 }
             }
         }

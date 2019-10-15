@@ -10,7 +10,7 @@
 bool_node *mkNode(bool_node::Type, bool_node*, bool_node* = nullptr);
 
 bool_node* elimQuant(
-        const std::set<std::string> &qNames,
+        std::set<std::string> qNames,
         std::map<bool_node*, bool_node*> witnEqns,
         bool_node *formulaBody);
 
