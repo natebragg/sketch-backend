@@ -842,8 +842,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Convert into the form:  assert (#PC /\ args = e => φ(result))
     //
     // Finally, fall through to a fresh uninterpreted function.
-    auto freshFunctionName = [this](const std::string &base) {
-        std::string fresh = base;
+    auto freshFunctionName = [this]() {
         std::set<std::string> taken;
         for (const auto &fun : functionMap) {
             taken.insert(fun.first);
@@ -851,11 +850,15 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                 taken.insert(dynamic_cast<UFUN_node*>(node)->get_ufname());
             }
         }
-        for (int i = 0; taken.count(fresh) > 0; ++i) {
-            fresh = base + std::to_string(i);
-        }
-        return fresh;
-    };
+        return [taken](const std::string &base) mutable {
+            std::string fresh = base;
+            for (int i = 0; taken.count(fresh) > 0; ++i) {
+                fresh = base + std::to_string(i);
+            }
+            taken.insert(fresh);
+            return fresh;
+        };
+    }();
     std::map<std::string, std::string> mockMap;
     for (const auto &fact : facts) {
         const std::string &origName = fact.first;
