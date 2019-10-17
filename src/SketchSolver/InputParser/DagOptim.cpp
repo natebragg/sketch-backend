@@ -1731,7 +1731,14 @@ bool_node*  DagOptim::addLE(bool_node* mother, bool_node* father){
 
 
 bool DagOptim::optimizeMMsize2(ARRACC_node& node){
-	
+
+	CTRL_node *ctrl0 = dynamic_cast<CTRL_node*>(node.multi_mother[0]);
+	CTRL_node *ctrl1 = dynamic_cast<CTRL_node*>(node.multi_mother[1]);
+	if ( ctrl0 && ctrl0->get_Angelic() && !ctrl0->spAngelic ||
+	     ctrl1 && ctrl1->get_Angelic() && !ctrl1->spAngelic) {
+		// NodeHarcoder expects angelic CTRLs to be inside ARRACC node.
+		return false;
+	}
     
 		if( isIntConst(node.multi_mother[0]) ){
 			int val0 = getIval( node.multi_mother[0] );
