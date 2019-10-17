@@ -48,6 +48,10 @@ void FreeIn::visit(SRC_node &n) {
     fvs[&n] = { n.name };
 }
 
+void FreeIn::visit(DST_node &n) {
+    fvs[&n] = { n.name };
+}
+
 bool_node *mkNode(bool_node::Type t, bool_node *m, bool_node *f) {
     bool_node *bn = newNode(t);
     bn->mother = m;

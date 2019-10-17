@@ -19,6 +19,7 @@ struct FreeIn : public NodeTraverser {
 private:
     void post(bool_node &n) override;
     void visit(SRC_node &n) override;
+    void visit(DST_node &n) override;
 };
 
 #endif
