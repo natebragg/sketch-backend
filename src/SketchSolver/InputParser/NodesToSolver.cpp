@@ -1246,8 +1246,13 @@ NodesToSolver::processArith (bool_node &node, THEOP comp, COMPARE_KEY c)
 	if(isSum){
 		for(map<int, vector<int> >::iterator it = qnumbers.begin(); it != qnumbers.end(); ++it){
 			int id = dir.addExPairConstraint(&(it->second[0]), it->second.size()/2);
-			numbers[it->first] = id;
-			++vals;
+			auto it_n = numbers.find(it->first);
+			if( it_n != numbers.end()){
+				it_n->second = dir.addOrClause(id, it_n->second);
+			}else{
+				numbers[it->first] = id;
+				++vals;
+			}
 		}
 	}
 
