@@ -137,7 +137,7 @@ static std::pair<bool_node*, bool_node*> theoryXform(
         }
 
         void visit(ARRACC_node&) override {
-            Assert(false, "in theoryXform, ARRACC_R should have been rewritten");
+            Assert(false, "in theoryXform, ARRACC should have been rewritten");
         }
 
         void visit(TIMES_node &n) override {
@@ -159,7 +159,7 @@ static std::pair<bool_node*, bool_node*> theoryXform(
             if (divisor->getOtype() == OutType::INT) {
                 CONST_node *zero = new CONST_node(0);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
-                pre.push_back(mkNode(bool_node::EQ, zero, mkNode(bool_node::MOD, lhs, divisor)));
+                pre.push_back(mkNode(bool_node::EQ, zero, mkNode(bool_node::MOD, lhs->mother, divisor)));
             } else if (divisor->getOtype() == OutType::FLOAT) {
                 CONST_node *zero = new CONST_node(0.0);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
