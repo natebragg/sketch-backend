@@ -984,8 +984,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     //            ha_mock4 -> a -> {f_mock, g -> f_mock}
     // depth 4: hf_mock3 -> f -> g -> f_mock; hg_mock3 -> g -> f > g_mock;
     //          ha_mock5 -> a -> {f -> g_mock, g -> f_mock}
-    int mockDepth = 3; // 3 covers harnesses directly calling mocks and those once-removed.
+    int mockDepth = params.mockDepth;
     std::stringstream mockLog;
+    mockLog << "maximum mockDepth " << mockDepth << "\n";
     for (int i = 0; i < mockDepth; ++i) {
         mockLog << "mockDepth " << i;
         std::map<std::string, std::string> renamesPrime;
@@ -1032,8 +1033,10 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         spskpairs.push_back(std::move(pair));
     }
 
-    if (params.verbosity > 8) {
+    if (params.verbosity > 7) {
         std::cout << mockLog.str();
+    }
+    if (params.verbosity > 8) {
         struct PrintTree : public NodeTraverser {
             std::string indent = "  ";
             void pre(bool_node &n) {

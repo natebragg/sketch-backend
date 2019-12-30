@@ -97,6 +97,7 @@ class CommandLineArgs{
   BoundMode boundmode;
   bool symbolic;
   bool mock;
+  int mockDepth;
 	CommandLineArgs(vector<string> args) {
 		char** argv = (char**)malloc(sizeof(char*) * args.size());
 		for(auto i = 0; i < args.size(); i++) {
@@ -179,6 +180,7 @@ class CommandLineArgs{
 	custIntSize = 5;
 	symbolic = true;
     mock = false;
+    mockDepth = 3;
 	  for(int ii=0; ii<argc; ++ii){
         if (string(argv[ii]) == "--print-version") {
             //cout << "CEGIS version features: " << VERSION_INFO << endl;
@@ -614,6 +616,12 @@ class CommandLineArgs{
     if( string(argv[ii]) == "-mock" ){
       mock = true;
       input_idx = ii+1;
+      continue;
+    }
+    if( string(argv[ii]) == "--bnd-mock-depth" ){
+      Assert(ii<(argc-1), "--bnd-mock-depth needs an extra parameter");
+      mockDepth = atoi(argv[ii+1]);
+      input_idx = ii+2;
       continue;
     }
     if(argv[ii][0] == '-'){
