@@ -195,7 +195,7 @@ static std::pair<bool_node*, bool_node*> theoryXform(
                 bool_node *dividend = DeepClone::clone(n.mother);
                 lhs = mkNode(bool_node::DIV, dividend, lhs);
                 CONST_node *zero = new CONST_node(0.0);
-                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, lhs)));
+                pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, lhs->father)));
                 n.father->accept(*this);
             } else if (fvs.at(n.father).count(qName) == 0) {
                 bool_node *divisor = DeepClone::clone(n.father);
