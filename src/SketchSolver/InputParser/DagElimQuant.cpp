@@ -1,34 +1,37 @@
 #include "DagElimQuant.h"
 #include <utility>
 
-struct Inst : public NodeTraverser {
+class Inst : public NodeTraverser {
+protected:
     std::set<bool_node*> deathRow;
     const std::string &qName;
+public:
     bool_node *psi;
-    Inst(const std::string qName, bool_node *psi)
+    Inst(const std::string &qName, bool_node *psi)
         : qName(qName), psi(psi) { }
     ~Inst() {
         for (bool_node *n : deathRow)
             delete n;
     }
+    void inst(bool_node **n) {
+        (*n)->accept(*this);
+        if (deathRow.count(*n) != 0)
+            *n = psi;
+    }
+protected:
+    void visit(SRC_node &n) {
+        if (n.name == qName)
+            deathRow.insert(&n);
+    }
     void post(bool_node &n) {
-        SRC_node *src = dynamic_cast<SRC_node*>(n.mother);
-        if (src && src->name == qName) {
-            deathRow.insert(src);
+        if (deathRow.count(n.mother) != 0)
             n.mother = psi;
-        }
-        src = dynamic_cast<SRC_node*>(n.father);
-        if (src && src->name == qName) {
-            deathRow.insert(src);
+        if (deathRow.count(n.father) != 0)
             n.father = psi;
-        }
         arith_node *an = dynamic_cast<arith_node*>(&n);
         for(int i = 0; an && i < an->multi_mother.size(); ++i) {
-            src = dynamic_cast<SRC_node*>(an->multi_mother[i]);
-            if (src && src->name == qName) {
-                deathRow.insert(src);
+            if (deathRow.count(an->multi_mother[i]) != 0)
                 an->multi_mother[i] = psi;
-            }
         }
     }
 };
@@ -241,6 +244,12 @@ static std::pair<bool_node*, bool_node*> theoryXform(
     for (bool_node *n : xform.pre) {
         pre = (pre == nullptr) ? n : mkNode(bool_node::AND, pre, n);
     }
+
+    if (PARAMS->verbosity > 8) {
+        std::cout << "xform(" << qName << ", " << lhs->mrprint() << ") => (";
+        std::cout << (pre == nullptr ? "T" : pre->mrprint()) << ", ";
+        std::cout << (xform.lhs == nullptr ? "F" : xform.lhs->mrprint()) << ")\n";
+    }
     return std::make_pair(pre, xform.lhs);
 }
 
@@ -311,8 +320,8 @@ static std::pair<bool_node*, bool_node*> synth(
                 rhs->accept(FunTraverser(FunTraverser::Order::Post, [&freein](bool_node &n) {
                     freein.fvs.erase(&n);
                 }));
-                rhs->accept(inst);
-                rhs->accept(freein);
+                inst.inst(&eqn.second);
+                eqn.second->accept(freein);
             }
         }
 
@@ -321,7 +330,7 @@ static std::pair<bool_node*, bool_node*> synth(
             pre->accept(freein);
             Inst inst(qName, DeepClone::clone(psi_n));
             if (freein.fvs[pre].count(qName) != 0) {
-                pre->accept(inst);
+                inst.inst(&pre);
             } else {
                 DeepDelete::del(inst.psi);
             }
@@ -332,7 +341,7 @@ static std::pair<bool_node*, bool_node*> synth(
             formulaBody->accept(freein);
             Inst inst(qName, DeepClone::clone(psi_n));
             if (freein.fvs[formulaBody].count(qName) != 0) {
-                formulaBody->accept(inst);
+                inst.inst(&formulaBody);
             } else {
                 DeepDelete::del(inst.psi);
             }

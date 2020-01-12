@@ -33,6 +33,7 @@ void DeepDelete::del(bool_node *n) {
 void DeepClone::post(bool_node &n) {
     if (replacements.count(&n) == 0) {
         bool_node *bn = n.clone();
+        bn->id = replacements.size();
         bn->mother = replacements[n.mother];
         bn->father = replacements[n.father];
         arith_node *an = dynamic_cast<arith_node*>(bn);
