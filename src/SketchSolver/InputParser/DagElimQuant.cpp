@@ -5,7 +5,6 @@ class Inst : public NodeTraverser {
 protected:
     std::set<bool_node*> deathRow;
     const std::string &qName;
-public:
     bool_node *psi;
     Inst(const std::string &qName, bool_node *psi)
         : qName(qName), psi(psi) { }
@@ -13,9 +12,11 @@ public:
         for (bool_node *n : deathRow)
             delete n;
     }
-    void inst(bool_node **n) {
-        (*n)->accept(*this);
-        if (deathRow.count(*n) != 0)
+public:
+    static void inst(bool_node **n, const std::string &qName, bool_node *psi) {
+        Inst i(qName, psi);
+        (*n)->accept(i);
+        if (i.deathRow.count(*n) != 0)
             *n = psi;
     }
 protected:
@@ -320,14 +321,13 @@ static std::pair<bool_node*, bool_node*> synth(
               (pre_n == nullptr) ? pre :
                 mkNode(bool_node::AND, pre, pre_n);
 
-        Inst inst(qName, psi_n);
         for (auto &eqn : witnEqns) {
             bool_node *rhs = eqn.second;
             if (freein.fvs[rhs].count(qName) != 0) {
                 rhs->accept(FunTraverser(FunTraverser::Order::Post, [&freein](bool_node &n) {
                     freein.fvs.erase(&n);
                 }));
-                inst.inst(&eqn.second);
+                Inst::inst(&eqn.second, qName, DeepClone::clone(psi_n));
                 eqn.second->accept(freein);
             }
         }
@@ -335,24 +335,19 @@ static std::pair<bool_node*, bool_node*> synth(
         if (pre != nullptr) {
             FreeIn freein;
             pre->accept(freein);
-            Inst inst(qName, DeepClone::clone(psi_n));
             if (freein.fvs[pre].count(qName) != 0) {
-                inst.inst(&pre);
-            } else {
-                DeepDelete::del(inst.psi);
+                Inst::inst(&pre, qName, DeepClone::clone(psi_n));
             }
         }
 
         {
             FreeIn freein;
             formulaBody->accept(freein);
-            Inst inst(qName, DeepClone::clone(psi_n));
             if (freein.fvs[formulaBody].count(qName) != 0) {
-                inst.inst(&formulaBody);
-            } else {
-                DeepDelete::del(inst.psi);
+                Inst::inst(&formulaBody, qName, DeepClone::clone(psi_n));
             }
         }
+        DeepDelete::del(psi_n);
     }
 
     for (auto &eqn : witnEqns) {
