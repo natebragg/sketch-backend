@@ -930,11 +930,11 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                         return mkNode(bool_node::EQ, cloner.clone_node(prm), cloner.clone_node(arg));
                     });
                     bool_node *pCond = cloner.clone_node(call->mother);
-                    bool_node *pred = std::accumulate(eqs.begin(), eqs.end(), pCond, [&](bool_node *acc, bool_node *n) {
+                    bool_node *nante = std::accumulate(eqs.begin(), eqs.end(), pCond, [&](bool_node *acc, bool_node *n) {
                         return mkNode(bool_node::AND, acc, n);
                     });
-                    bool_node *not_pred = mkNode(bool_node::NOT, pred);
-                    bool_node *impl = mkNode(bool_node::OR, not_pred, cons);
+                    bool_node *ante = mkNode(bool_node::NOT, nante);
+                    bool_node *impl = mkNode(bool_node::OR, ante, cons);
 
                     FreeIn freein;
                     assert->mother->accept(freein);
