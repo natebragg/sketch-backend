@@ -157,14 +157,19 @@ static std::pair<bool_node*, bool_node*> theoryXform(
                 return;
             }
 
+            bool_node *mod = DeepClone::clone(lhs);
             divisor = DeepClone::clone(divisor);
             lhs = mkNode(bool_node::DIV, lhs, divisor);
             if (divisor->getOtype() == OutType::INT) {
-                CONST_node *zero = new CONST_node(0);
+                bool_node *zero = new CONST_node(0);
+                divisor = DeepClone::clone(divisor);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
-                pre.push_back(mkNode(bool_node::EQ, zero, mkNode(bool_node::MOD, lhs->mother, divisor)));
+                zero = DeepClone::clone(zero);
+                divisor = DeepClone::clone(divisor);
+                pre.push_back(mkNode(bool_node::EQ, zero, mkNode(bool_node::MOD, mod, divisor)));
             } else if (divisor->getOtype() == OutType::FLOAT) {
-                CONST_node *zero = new CONST_node(0.0);
+                bool_node *zero = new CONST_node(0.0);
+                divisor = DeepClone::clone(divisor);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
             } else {
                 // This should be impossible, but just in case...
@@ -196,14 +201,16 @@ static std::pair<bool_node*, bool_node*> theoryXform(
 
             if (fvs.at(n.mother).count(qName) == 0) {
                 bool_node *dividend = DeepClone::clone(n.mother);
+                bool_node *divisor = DeepClone::clone(lhs);
                 lhs = mkNode(bool_node::DIV, dividend, lhs);
-                CONST_node *zero = new CONST_node(0.0);
+                bool_node *zero = new CONST_node(0.0);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, lhs->father)));
                 n.father->accept(*this);
             } else if (fvs.at(n.father).count(qName) == 0) {
                 bool_node *divisor = DeepClone::clone(n.father);
                 lhs = mkNode(bool_node::TIMES, divisor, lhs);
-                CONST_node *zero = new CONST_node(0.0);
+                bool_node *zero = new CONST_node(0.0);
+                divisor = DeepClone::clone(divisor);
                 pre.push_back(mkNode(bool_node::NOT, mkNode(bool_node::EQ, zero, divisor)));
                 n.mother->accept(*this);
             } else {
