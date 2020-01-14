@@ -827,8 +827,6 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         bool one_call = ufs != findUfuns.ufuns.end() && ufs->second.size() == 1;
         if (one_call) {
             for (auto uf : ufs->second) {
-                // supporting asserts that depend on inputs requires handling
-                // alternating quantifiers.
                 facts[uf->get_ufname()][uf].insert(asst.first);
             }
         }
