@@ -328,7 +328,10 @@ static std::pair<bool_node*, bool_node*> synth(
                     freein.fvs.erase(&n);
                 }));
                 Inst::inst(&eqn.second, qName, DeepClone::clone(psi_n));
-                eqn.second->accept(freein);
+                FreeIn freeintmp;  // Need a clean traversal
+                freeintmp.fvs.swap(freein.fvs);
+                eqn.second->accept(freeintmp);
+                freeintmp.fvs.swap(freein.fvs);
             }
         }
 
