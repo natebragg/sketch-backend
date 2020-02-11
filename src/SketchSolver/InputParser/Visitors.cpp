@@ -1,4 +1,5 @@
 #include "Visitors.h"
+#include <iostream>
 
 void ParentVisitor::visitArith(arith_node& n) {
     if (n.mother != nullptr) n.mother->accept(visitor);
@@ -76,4 +77,13 @@ void CloneTraverser::visit(CTRL_node &n) {
 
 void CloneTraverser::visit(CONST_node &n) {
     replacements[&n] = n.isFloat() ? bd->create_const(n.getFval()) : bd->create_const(n.getVal());
+}
+
+void PrintTree::pre(bool_node &n) {
+    std::cout << indent << n.mrprint() << ":\n";
+    indent += "  ";
+}
+
+void PrintTree::post(bool_node &) {
+    indent = indent.substr(2);
 }

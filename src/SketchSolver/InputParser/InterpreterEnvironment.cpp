@@ -1035,18 +1035,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         std::cout << mockLog.str();
     }
     if (params.verbosity > 8) {
-        struct PrintTree : public NodeTraverser {
-            std::string indent = "  ";
-            void pre(bool_node &n) {
-                std::cout << indent << n.mrprint() << ":\n";
-                indent += "  ";
-            }
-            void post(bool_node &) {
-                indent = indent.substr(2);
-            }
-        } pt;
         for (auto names : mockMap) {
             for (auto name : {names.first, names.second}) {
+                PrintTree pt;
                 BooleanDAG *mock = functionMap[name];
                 std::cout << name << ":\n";
                 for (auto it = mock->rbegin(); it != mock->rend(); ++it) {

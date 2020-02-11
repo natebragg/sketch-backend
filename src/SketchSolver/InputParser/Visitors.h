@@ -5,6 +5,7 @@
 #include "BooleanDAGCreator.h"
 #include "BooleanNodes.h"
 #include <functional>
+#include <string>
 #include <map>
 #include <set>
 
@@ -76,6 +77,14 @@ protected:
     void visit(SRC_node &n) override;
     void visit(CTRL_node &n) override;
     void visit(CONST_node &n) override;
+};
+
+class PrintTree : public NodeTraverser {
+public:
+    std::string indent = "  ";
+protected:
+    void pre(bool_node &n) override;
+    void post(bool_node &) override;
 };
 
 #endif
