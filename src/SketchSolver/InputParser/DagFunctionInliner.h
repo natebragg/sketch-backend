@@ -198,7 +198,13 @@ protected:
 			return false;
 		}else{
 			if(n->type == bool_node::AND){	
-				return recCheck(n->mother) && recCheck(n->father);
+				auto i = checkCache.find(n->globalId);
+				if(i != checkCache.end()) {
+					return i->second;
+				}
+				bool result = recCheck(n->mother) && recCheck(n->father);
+				checkCache[n->globalId] = result;
+				return result;
 			}
 		}
 		return true;
@@ -212,6 +218,11 @@ protected:
 	The badConditions are the globalIds of those expressions corresponding to bad conditions.
 	*/
 	set<int> badConditions;
+
+	/**
+	To asymptotically speed up recCheck
+	*/
+	std::map<int, bool> checkCache;
 
 	//There are two inlining modes. Inlining by callsite means the bound
 	//controls the number of times a call site appears in the stack. 
