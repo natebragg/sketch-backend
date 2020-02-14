@@ -27,7 +27,7 @@ class timerclass{
 	void gettimeofdayme(timeval* tv, timeval* emp) {
 		time_point<high_resolution_clock, milliseconds> msc= time_point_cast<milliseconds>(high_resolution_clock::now());
 		tv->tv_sec = msc.time_since_epoch().count() / 1000;
-		tv->tv_usec = msc.time_since_epoch().count() % 1000;
+		tv->tv_usec = 1000 * (msc.time_since_epoch().count() % 1000);
 	}
 
 	timerclass(const string& pname):name(pname){
