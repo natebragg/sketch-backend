@@ -918,39 +918,40 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                     } cloner(call, call_uf);
 
                     // Clone assert body up to the call site
-                    bool_node *cons = cloner.clone_node(assert->mother);
+                    bool_node *formula = cloner.clone_node(assert->mother);
+                    bool_node *pre = cloner.clone_node(call->mother);
 
                     const std::vector<bool_node*> &args = call->multi_mother;
                     Assert(prms.size() == args.size(), "parameter argument arity mismatch.");
-                    std::vector<bool_node*> eqs;
-                    eqs.reserve(prms.size());
-                    std::transform(prms.begin(), prms.end(), args.begin(), std::back_inserter(eqs), [&](bool_node *prm, bool_node *arg){
-                        return mkNode(bool_node::EQ, cloner.clone_node(prm), cloner.clone_node(arg));
-                    });
-                    bool_node *pCond = cloner.clone_node(call->mother);
-                    bool_node *nante = std::accumulate(eqs.begin(), eqs.end(), pCond, [&](bool_node *acc, bool_node *n) {
-                        return mkNode(bool_node::AND, acc, n);
-                    });
-                    bool_node *ante = mkNode(bool_node::NOT, nante);
-                    bool_node *impl = mkNode(bool_node::OR, ante, cons);
-
-                    FreeIn freein;
-                    assert->mother->accept(freein);
 
                     std::map<bool_node*, bool_node*> witnEqns;
                     std::transform(prms.begin(), prms.end(), args.begin(), std::inserter(witnEqns, witnEqns.begin()), [&](bool_node *prm, bool_node *arg){
                         return std::make_pair(cloner.clone_node(prm), cloner.clone_node(arg));
                     });
 
-                    bool_node *implElim = elimQuant(std::move(freein.fvs[assert->mother]), std::move(witnEqns), impl);
-                    if (implElim != nullptr) {
-                        bool_node *an = mkNode(bool_node::ASSERT, implElim);
+                    FreeIn freein;
+                    assert->mother->accept(freein);
+
+                    bool_node *preElim, *formulaElim;
+                    std::tie(preElim, formulaElim) = elimQuant(std::move(freein.fvs[assert->mother]), std::move(witnEqns), pre, formula);
+
+                    {
+                        DeepDelete del;
+                        formula->accept(del);
+                        pre->accept(del);
+                        for(auto w : witnEqns) {
+                            w.first->accept(del);
+                            w.second->accept(del);
+                        }
+                    }
+
+                    if (formulaElim != nullptr) {
+                        bool_node *an = mkNode(bool_node::ASSERT, mkNode(bool_node::OR, mkNode(bool_node::NOT, preElim), formulaElim));
                         dynamic_cast<ASSERT_node*>(an)->makeAssume();
                         dynamic_cast<ASSERT_node*>(an)->setMsg(assert->getMsg());
                         an->accept(CloneTraverser(bd));
                         DeepDelete::del(an);
                     }
-                    DeepDelete::del(impl);
                 }
             }
         }

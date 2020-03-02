@@ -283,6 +283,7 @@ static std::pair<bool_node*, bool_node*> witn(
 static std::pair<bool_node*, bool_node*> synth(
         const std::set<std::string> &qNames,
         std::map<bool_node*, bool_node*> witnEqns,
+        bool_node *pre,
         bool_node *formulaBody
     )
 {
@@ -294,6 +295,7 @@ static std::pair<bool_node*, bool_node*> synth(
         }
         witnEqns = std::move(witnClones);
     }
+    pre = DeepClone::clone(pre);
     formulaBody = DeepClone::clone(formulaBody);
 
     FreeIn freein;
@@ -301,7 +303,6 @@ static std::pair<bool_node*, bool_node*> synth(
         eqn.second->accept(freein);
     }
 
-    bool_node *pre = nullptr;
     for (const std::string &qName : qNames) {
         bool_node *pre_n, *psi_n;
         std::tie(pre_n, psi_n) = witn(freein.fvs, qName, witnEqns);
@@ -310,15 +311,12 @@ static std::pair<bool_node*, bool_node*> synth(
                 DeepDelete::del(eqn.first);
                 DeepDelete::del(eqn.second);
             }
-            if (pre != nullptr) {
-                DeepDelete::del(pre);
-            }
+            DeepDelete::del(pre);
             DeepDelete::del(formulaBody);
 
             return std::make_pair(nullptr, nullptr);
         }
-        pre = (pre   == nullptr) ? pre_n :
-              (pre_n == nullptr) ? pre :
+        pre = (pre_n == nullptr) ? pre :
                 mkNode(bool_node::AND, pre, pre_n);
 
         for (auto &eqn : witnEqns) {
@@ -335,7 +333,7 @@ static std::pair<bool_node*, bool_node*> synth(
             }
         }
 
-        if (pre != nullptr) {
+        {
             FreeIn freein;
             pre->accept(freein);
             if (freein.fvs[pre].count(qName) != 0) {
@@ -354,24 +352,18 @@ static std::pair<bool_node*, bool_node*> synth(
     }
 
     for (auto &eqn : witnEqns) {
-        DeepDelete::del(eqn.first);
-        DeepDelete::del(eqn.second);
+        pre = mkNode(bool_node::AND, pre, mkNode(bool_node::EQ, eqn.first, eqn.second));
     }
 
     return std::make_pair(pre, formulaBody);
 }
 
-bool_node* elimQuant(
+std::pair<bool_node *, bool_node *> elimQuant(
         std::set<std::string> qNames,
         std::map<bool_node*, bool_node*> witnEqns,
+        bool_node *pre,
         bool_node *formulaBody
     )
 {
-    bool_node *pre, *newFormula;
-    std::tie(pre, newFormula) = synth(qNames, std::move(witnEqns), formulaBody);
-    if (pre != nullptr) {
-        return mkNode(bool_node::OR, mkNode(bool_node::NOT, pre), newFormula);
-    } else {
-        return newFormula;
-    }
+    return synth(qNames, std::move(witnEqns), pre, formulaBody);
 }

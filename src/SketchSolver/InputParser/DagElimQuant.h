@@ -9,9 +9,10 @@
 
 bool_node *mkNode(bool_node::Type, bool_node*, bool_node* = nullptr);
 
-bool_node* elimQuant(
+std::pair<bool_node *, bool_node *> elimQuant(
         std::set<std::string> qNames,
         std::map<bool_node*, bool_node*> witnEqns,
+        bool_node *pre,
         bool_node *formulaBody);
 
 struct FreeIn : public NodeTraverser {
