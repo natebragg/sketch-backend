@@ -2583,7 +2583,7 @@ void DagOptim::visit( ASSERT_node &node){
 					}
 				}
 			}else{
-				tmp.main = &node;				
+				tmp.main = dynamic_cast<ASSERT_node*>(cse.computeCSE(&node));
 				//cout<<tmp.bn[0]->id<<", "<<", "<<tmp.bn[1]->id<<", "<<tmp.bn[2]->id<<endl;
 			}
 		}
