@@ -850,7 +850,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         }
         return [taken](const std::string &base) mutable {
             std::string fresh = base;
-            for (int i = 0; taken.count(fresh) > 0; ++i) {
+            for (int i = 2; taken.count(fresh) > 0; ++i) {
                 fresh = base + std::to_string(i);
             }
             taken.insert(fresh);
@@ -875,7 +875,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         }
         std::vector<bool_node*> prms = mock->second->getNodesByType(bool_node::SRC);
 
-        const std::string &uninterpName = freshFunctionName(origName + "_uninterp");
+        const std::string &uninterpName = freshFunctionName(origName + "_uf");
         UFUN_node *call_uf = new UFUN_node(uninterpName);
         call_uf->multi_mother.reserve(prms.size());
         for (auto *p : prms) {
@@ -976,13 +976,15 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
     // say you have f, g, a, hf, hg, ha, s.t.
     //          f -> g, g -> f, hf -> f, hg -> g, a -> {f, g}, ha -> a
-    // depth 2: hf_mock -> f_mock; hg_mock -> g_mock; ha_mock -> a_mock
-    // depth 3: hf_mock2 -> f -> g_mock; hg_mock2 -> g -> f_mock;
-    //          ha_mock2 -> a -> {f_mock, g_mock}
-    // depth 3.5: ha_mock3 -> a -> {f -> g_mock, g_mock}
-    //            ha_mock4 -> a -> {f_mock, g -> f_mock}
-    // depth 4: hf_mock3 -> f -> g -> f_mock; hg_mock3 -> g -> f > g_mock;
-    //          ha_mock5 -> a -> {f -> g_mock, g -> f_mock}
+    // depth 2:   hf_prime -> f_mock; hg_prime -> g_mock; ha_prime -> a_mock
+    // depth 3:   hf_prime2 -> f_prime -> g_mock;
+    //            hg_prime2 -> g_prime -> f_mock;
+    //            ha_prime2 -> a_prime -> {f_mock, g_mock}
+    // depth 3.5: ha_prime3 -> a_prime2 -> {f_prime -> g_mock, g_mock};
+    //            ha_prime4 -> a_prime3 -> {f_mock, g_prime -> f_mock}
+    // depth 4:   hf_prime3 -> f_prime2 -> g_prime -> f_mock;
+    //            hg_prime3 -> g_prime2 -> f_prime > g_mock;
+    //            ha_prime5 -> a_prime4 -> {f_prime -> g_mock, g_prime -> f_mock}
     int mockDepth = params.mockDepth;
     std::stringstream mockLog;
     mockLog << "maximum mockDepth " << mockDepth << "\n";
@@ -995,7 +997,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             for (const auto &caller : cg.in(origName)) {
                 mockLog << caller;
                 if (renamesPrime.count(caller) == 0) {
-                    std::string mockCaller = freshFunctionName(caller + "_mock");
+                    std::string mockCaller = freshFunctionName(caller + "_prime");
                     mockLog << " ~ " << mockCaller;
                     auto it = functionMap.find(caller);
                     Assert(it != functionMap.end(), "ufs should not be able to call anything");
