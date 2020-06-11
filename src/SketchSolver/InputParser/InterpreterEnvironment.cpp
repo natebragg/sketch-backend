@@ -1037,18 +1037,6 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     if (params.verbosity > 7) {
         std::cout << mockLog.str();
     }
-    if (params.verbosity > 8) {
-        for (auto names : mockMap) {
-            for (auto name : {names.first, names.second}) {
-                PrintTree pt;
-                BooleanDAG *mock = functionMap[name];
-                std::cout << name << ":\n";
-                for (auto it = mock->rbegin(); it != mock->rend(); ++it) {
-                    (*it)->accept(pt);
-                }
-            }
-        }
-    }
 }
 
 
@@ -1059,6 +1047,11 @@ int InterpreterEnvironment::doallpairs() {
 
 	if(params.mock) {
 		rewriteUninterpretedMocks();
+	}
+	if (params.verbosity > 8) {
+		for (const auto &fun : functionMap) {
+			std::cout << PrettyDag::pretty(fun.first, *fun.second);
+		}
 	}
 
 	// A dummy ctrl for inlining bound

@@ -87,4 +87,51 @@ protected:
     void post(bool_node &) override;
 };
 
+class PrettyDag : public NodeVisitor {
+public:
+    static std::string pretty(OutType *ot, int size = -1);
+    static std::string pretty(bool_node *n);
+    static std::string pretty(const std::string &name, BooleanDAG &bdag);
+
+    std::string show();
+    void process(BooleanDAG &bdag) override;
+
+protected:
+    std::stringstream stmts;
+    std::stack<std::tuple<bool_node*, bool, std::string> > exps;
+    std::map<bool_node*, std::string> vars;
+    int freshvar = 0;
+
+    std::string popExp();
+    std::string listOfExp(int arity, std::string sym);
+
+	void visit(AND_node &n) override;
+	void visit(OR_node &n) override;
+	void visit(XOR_node &n) override;
+	void visit(SRC_node &n) override;
+	void visit(DST_node &n) override;
+	void visit(NOT_node &n) override;
+	void visit(CTRL_node &n) override;
+	void visit(PLUS_node &n) override;
+	void visit(TIMES_node &n) override;
+	void visit(UFUN_node &n) override;
+	void visit(ARRACC_node &n) override;
+	void visit(DIV_node &n) override;
+	void visit(MOD_node &n) override;
+	void visit(NEG_node &n) override;
+	void visit(CONST_node &n) override;
+	void visit(LT_node &n) override;
+	void visit(EQ_node &n) override;
+	void visit(ARRASS_node &n) override;
+	void visit(ACTRL_node &n) override;
+	void visit(ASSERT_node &n) override;
+
+	void visit(ARR_R_node &n) override;
+	void visit(ARR_W_node &n) override;
+	void visit(ARR_CREATE_node &n) override;
+
+	void visit(TUPLE_CREATE_node &n) override;
+	void visit(TUPLE_R_node &n) override;
+};
+
 #endif
