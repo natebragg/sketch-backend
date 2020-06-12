@@ -21,6 +21,17 @@ void NodeTraverser::visitBool(bool_node& n) {
     }
 }
 
+void NodeReacherBase::post(bool_node &n) {
+    n.accept(ParentVisitor(FunVisitor([&](bool_node &m) {
+        const auto &reachables_m = reachable.find(&m);
+        if (reachables_m != reachable.end()) {
+            auto &reachable_n = reachable[&n];
+            for (auto reachable_m : reachables_m->second)
+                reachable_n.insert(reachable_m);
+        }
+    })));
+}
+
 DeepDelete::~DeepDelete() {
     for (bool_node *bn : visited) {
         delete bn;

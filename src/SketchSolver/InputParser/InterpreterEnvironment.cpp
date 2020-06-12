@@ -796,37 +796,19 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     }
 
     // Phase 1: convert all harness asserts to facts.
-    struct FindUfuns : public NodeTraverser {
-        std::map<bool_node*, std::set<UFUN_node*> > ufuns;
-        void post(bool_node &n) override {
-            n.accept(ParentVisitor(FunVisitor([&](bool_node &m) {
-                auto ufuns_m = ufuns.find(&m);
-                if (ufuns_m != ufuns.end()) {
-                    for (auto ufun_m : ufuns_m->second)
-                        ufuns[&n].insert(ufun_m);
-                }
-            })));
-        }
-
-        void visit(UFUN_node &n) override {
-            if (ufuns.count(&n) == 0) {
-                ufuns[&n].insert(&n);
-                NodeTraverser::visit(n);
-            }
-        }
-    } findUfuns;
+    NodeReacher<UFUN_node> findUfuns;
     for (const auto &asst : asserts) {
         asst.first->accept(findUfuns);
     }
     //       callee                call                 caller
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
     for (const auto &asst : asserts) {
-        auto ufs = findUfuns.ufuns.find(asst.first);
+        auto ufs = findUfuns.reachableFrom(asst.first);
         // handling multiple calls in the same assert is complicated by
         // interactions across mocks.
-        bool one_call = ufs != findUfuns.ufuns.end() && ufs->second.size() == 1;
+        bool one_call = ufs.size() == 1;
         if (one_call) {
-            for (auto uf : ufs->second) {
+            for (auto uf : ufs) {
                 facts[uf->get_ufname()][uf].insert(asst.first);
             }
         }
@@ -907,8 +889,8 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         for (const auto &callSite : fact.second) {
             UFUN_node *call = callSite.first;
             for (ASSERT_node *assert : callSite.second) {
-                auto calls = findUfuns.ufuns.find(assert);
-                bool one_call = calls != findUfuns.ufuns.end() && calls->second.size() == 1;
+                auto calls = findUfuns.reachableFrom(assert);
+                bool one_call = calls.size() == 1;
                 if (one_call) {
                     struct NoUfunCloner : public DeepClone {
                         NoUfunCloner(bool_node *call, bool_node *call_uf) {

@@ -49,6 +49,36 @@ protected:
     void post ( bool_node& n) override { if (order == Order::Post) f(n); }
 };
 
+class NodeReacherBase : public NodeTraverser {
+protected:
+    std::map<bool_node*, std::set<bool_node*> > reachable;
+    void post(bool_node &n) override;
+};
+
+template <typename T>
+class NodeReacher : public NodeReacherBase {
+public:
+    std::set<T*> reachableFrom(bool_node *n) {
+        std::set<T*> result;
+        const auto &reachable_n = reachable.find(n);
+        if (reachable_n != reachable.end()) {
+            for (auto n : reachable_n->second) {
+                result.insert(dynamic_cast<T*>(n));
+            }
+        }
+
+        return result;
+    }
+
+protected:
+	void visit(T &n) override {
+        if (reachable.count(&n) == 0) {
+            reachable[&n].insert(&n);
+            NodeTraverser::visit(n);
+        }
+    }
+};
+
 class DeepDelete : public NodeTraverser {
 public:
     ~DeepDelete();
