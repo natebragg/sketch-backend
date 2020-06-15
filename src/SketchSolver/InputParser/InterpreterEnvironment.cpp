@@ -773,7 +773,7 @@ DirectedGraph<std::string> callGraph(const std::map<std::string, BooleanDAG*> &f
 void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Phase 0: identify the methods that will be mocked, and the methods that will
     // be analyzed to produce those mocks.
-    std::map<ASSERT_node*, std::string> asserts;
+    std::set<ASSERT_node*> asserts;
     DirectedGraph<std::string> cg = callGraph(functionMap);
     for (const spskpair &pair : spskpairs) {
         Assert(pair.file.size() == 0,
@@ -789,7 +789,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             for (auto node : fun->second->getNodesByType(bool_node::ASSERT)) {
                 ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
                 if(an->isNormal()) {
-                    asserts[an] = f;
+                    asserts.insert(an);
                 }
             }
         });
@@ -798,18 +798,18 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Phase 1: convert all harness asserts to facts.
     NodeReacher<UFUN_node> findUfuns;
     for (const auto &asst : asserts) {
-        asst.first->accept(findUfuns);
+        asst->accept(findUfuns);
     }
     //       callee                call                 caller
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
     for (const auto &asst : asserts) {
-        auto ufs = findUfuns.reachableFrom(asst.first);
+        auto ufs = findUfuns.reachableFrom(asst);
         // handling multiple calls in the same assert is complicated by
         // interactions across mocks.
         bool one_call = ufs.size() == 1;
         if (one_call) {
             for (auto uf : ufs) {
-                facts[uf->get_ufname()][uf].insert(asst.first);
+                facts[uf->get_ufname()][uf].insert(asst);
             }
         }
     }
