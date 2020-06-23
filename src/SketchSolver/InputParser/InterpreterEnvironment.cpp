@@ -797,20 +797,98 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
 
     // Phase 1: convert all harness asserts to facts.
     NodeReacher<UFUN_node> findUfuns;
-    for (const auto &asst : asserts) {
+    for (auto asst : asserts) {
         asst->accept(findUfuns);
     }
-    //       callee                call                 caller
-    std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
-    for (const auto &asst : asserts) {
-        auto ufs = findUfuns.reachableFrom(asst);
+    NodeReacher<SRC_node> findSrcs;
+    for (auto asst : asserts) {
+        asst->accept(findSrcs);
+    }
+    std::set<ASSERT_node*> asserts01; // asserts about zero or one functions
+    std::set<SRC_node*> srcsN;  // srcs in asserts about two or more functions
+    for (auto asst : asserts) {
         // handling multiple calls in the same assert is complicated by
         // interactions across mocks.
-        bool one_call = ufs.size() == 1;
-        if (one_call) {
-            for (auto uf : ufs) {
-                facts[uf->get_ufname()][uf].insert(asst);
+        if (findUfuns.reachableFrom(asst).size() <= 1) {
+            asserts01.insert(asst);
+        } else {
+            for (auto src : findSrcs.reachableFrom(asst)) {
+                srcsN.insert(src);
             }
+        }
+    }
+
+    auto assertsWithoutSrcs = [&findSrcs](std::set<SRC_node*> srcsBad, std::set<ASSERT_node*> asserts) {
+        while (!srcsBad.empty()) {
+            std::set<ASSERT_node*> assertsBad;
+            for (auto asst : asserts) {
+                for (auto src : findSrcs.reachableFrom(asst)) {
+                    if (srcsBad.count(src) != 0) {
+                        assertsBad.insert(asst);
+                        break;
+                    }
+                }
+            }
+            srcsBad.clear();
+            for (auto asst : assertsBad) {
+                for (auto src : findSrcs.reachableFrom(asst)) {
+                    srcsBad.insert(src);
+                }
+                asserts.erase(asst);
+            }
+        }
+        return asserts;
+    };
+
+    std::set<ASSERT_node*> asserts01prime = assertsWithoutSrcs(srcsN, asserts01);
+    std::set<ASSERT_node*> asserts0prime;
+    std::map<std::string, std::set<ASSERT_node*> > assertsByFun;
+    for (auto asst : asserts01prime) {
+        auto ufs = findUfuns.reachableFrom(asst);
+        Assert(ufs.size () <= 1, "An assert with multiple calls leaked through");
+        if (ufs.empty()) {
+            asserts0prime.insert(asst);
+        } else if (ufs.size() == 1) {
+            assertsByFun[(*ufs.begin())->get_ufname()].insert(asst);
+        }
+    }
+
+    //       callee                call                 caller
+    std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
+    for (const auto &f : assertsByFun) {
+        std::set<SRC_node*> srcsInG;
+        for (const auto &g : assertsByFun) {
+            if (g.first != f.first) {
+                for (auto asst : g.second) {
+                    for (auto src : findSrcs.reachableFrom(asst)) {
+                        srcsInG.insert(src);
+                    }
+                }
+            }
+        }
+        std::set<ASSERT_node*> assertCandidates = f.second;
+        for (auto asst : asserts0prime) {
+            assertCandidates.insert(asst);
+        }
+        std::set<SRC_node*> srcsInF;
+        std::set<ASSERT_node*> asserts0f;
+        for (auto asst : assertsWithoutSrcs(srcsInG, assertCandidates)) {
+            auto ufs = findUfuns.reachableFrom(asst);
+            Assert(ufs.size () <= 1, "An assert with multiple calls leaked through");
+            if (ufs.empty()) {
+                asserts0f.insert(asst);
+            } else if (ufs.size() == 1) {
+                facts[f.first][(*ufs.begin())].insert(asst);
+                for (auto src : findSrcs.reachableFrom(asst)) {
+                    srcsInF.insert(src);
+                }
+            }
+        }
+        for (auto asst : assertsWithoutSrcs(srcsInF, asserts0f)) {
+            asserts0f.erase(asst);
+        }
+        for (auto asst : asserts0f) {
+            //facts[f.first][nullptr].insert(asst);
         }
     }
 
