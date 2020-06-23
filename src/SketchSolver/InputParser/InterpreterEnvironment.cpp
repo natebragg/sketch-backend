@@ -888,7 +888,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             asserts0f.erase(asst);
         }
         for (auto asst : asserts0f) {
-            //facts[f.first][nullptr].insert(asst);
+            facts[f.first][nullptr].insert(asst);
         }
     }
 
@@ -924,8 +924,16 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         mockMap[origName] = mockName;
         BooleanDAGCreator *bd = newFunction(mockName, true);
 
-        Assert(!fact.second.empty(), "call sites cannot be empty");
-        const std::string &tupName = fact.second.begin()->first->getTupleName();
+        UFUN_node *call = nullptr;
+        for (const auto &callSite : fact.second) {
+            call = callSite.first;
+            if (call != nullptr) {
+                break;
+            }
+        }
+
+        Assert(call != nullptr, "A function with no asserts leaked through");
+        const std::string &tupName = call->getTupleName();
 
         auto orig = functionMap.find(origName), mock = functionMap.find(mockName);
         Assert(orig != functionMap.end() && mock != functionMap.end(), "mocked functions cannot be uninterpreted.");
