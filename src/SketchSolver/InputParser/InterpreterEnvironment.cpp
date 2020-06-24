@@ -839,8 +839,14 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         }
         return asserts;
     };
+    auto assertsWithOnlySrcs = [&assertsWithoutSrcs](std::set<SRC_node*> srcsGood, std::set<ASSERT_node*> asserts) {
+        for (auto asst : assertsWithoutSrcs(std::move(srcsGood), asserts)) {
+            asserts.erase(asst);
+        }
+        return asserts;
+    };
 
-    std::set<ASSERT_node*> asserts01prime = assertsWithoutSrcs(srcsN, asserts01);
+    std::set<ASSERT_node*> asserts01prime = assertsWithoutSrcs(std::move(srcsN), std::move(asserts01));
     std::set<ASSERT_node*> asserts0prime;
     std::map<std::string, std::set<ASSERT_node*> > assertsByFun;
     for (auto asst : asserts01prime) {
@@ -872,7 +878,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         }
         std::set<SRC_node*> srcsInF;
         std::set<ASSERT_node*> asserts0f;
-        for (auto asst : assertsWithoutSrcs(srcsInG, assertCandidates)) {
+        for (auto asst : assertsWithoutSrcs(std::move(srcsInG), std::move(assertCandidates))) {
             auto ufs = findUfuns.reachableFrom(asst);
             Assert(ufs.size () <= 1, "An assert with multiple calls leaked through");
             if (ufs.empty()) {
@@ -884,9 +890,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                 }
             }
         }
-        for (auto asst : assertsWithoutSrcs(srcsInF, asserts0f)) {
-            asserts0f.erase(asst);
-        }
+        asserts0f = assertsWithOnlySrcs(std::move(srcsInF), std::move(asserts0f));
         for (auto asst : asserts0f) {
             facts[f.first][nullptr].insert(asst);
         }
@@ -972,6 +976,11 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
         }
 
+        std::set<ASSERT_node*> dependentAsserts;
+        auto assertsNoCallsIter = fact.second.find(nullptr);
+        if (assertsNoCallsIter != fact.second.end()) {
+            dependentAsserts = std::move(assertsNoCallsIter->second);
+        }
         for (const auto &callSite : fact.second) {
             UFUN_node *call = callSite.first;
             for (ASSERT_node *assert : callSite.second) {
@@ -988,6 +997,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                     // Clone assert body up to the call site
                     bool_node *formula = cloner.clone_node(assert->mother);
                     bool_node *pre = cloner.clone_node(call->mother);
+                    for (ASSERT_node *dep : assertsWithOnlySrcs(findSrcs.reachableFrom(assert), dependentAsserts)) {
+                        pre = mkNode(bool_node::AND, cloner.clone_node(dep->mother), pre);
+                    }
 
                     const std::vector<bool_node*> &args = call->multi_mother;
                     Assert(prms.size() == args.size(), "parameter argument arity mismatch.");
