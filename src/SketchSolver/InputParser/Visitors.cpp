@@ -127,7 +127,8 @@ std::string PrettyDag::pretty(const std::string &name, BooleanDAG &bdag) {
 }
 
 std::string PrettyDag::show() {
-    return stmts.str();
+    std::string incomplete = exps.empty() ? "" : (std::get<2>(exps.top()) + "\n");
+    return stmts.str() + incomplete;
 }
 
 void PrettyDag::process(BooleanDAG &bdag) {
