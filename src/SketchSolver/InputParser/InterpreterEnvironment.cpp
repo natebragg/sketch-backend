@@ -804,49 +804,63 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     for (auto asst : asserts) {
         asst->accept(findSrcs);
     }
+    NodeReacher<CTRL_node> findCtrls;
+    for (auto asst : asserts) {
+        asst->accept(findCtrls);
+    }
+    auto depsReachableFrom = [&findCtrls, &findSrcs](ASSERT_node *asst) {
+        std::set<bool_node*> deps;
+        for (auto n : findSrcs.reachableFrom(asst)) {
+            deps.insert(n);
+        }
+        for (auto n : findCtrls.reachableFrom(asst)) {
+            deps.insert(n);
+        }
+        return deps;
+    };
     std::set<ASSERT_node*> asserts01; // asserts about zero or one functions
-    std::set<SRC_node*> srcsN;  // srcs in asserts about two or more functions
+    std::set<bool_node*> depsN;  // srcs and ctrls in asserts about two or more functions
     for (auto asst : asserts) {
         // handling multiple calls in the same assert is complicated by
         // interactions across mocks.
         if (findUfuns.reachableFrom(asst).size() <= 1) {
             asserts01.insert(asst);
         } else {
-            for (auto src : findSrcs.reachableFrom(asst)) {
-                srcsN.insert(src);
+            for (auto n : depsReachableFrom(asst)) {
+                depsN.insert(n);
             }
         }
     }
 
-    auto assertsWithoutSrcs = [&findSrcs](std::set<SRC_node*> srcsBad, std::set<ASSERT_node*> asserts) {
-        while (!srcsBad.empty()) {
+    auto assertsWithoutDeps = [&depsReachableFrom](std::set<bool_node*> depsBad, std::set<ASSERT_node*> asserts) {
+        while (!depsBad.empty()) {
             std::set<ASSERT_node*> assertsBad;
             for (auto asst : asserts) {
-                for (auto src : findSrcs.reachableFrom(asst)) {
-                    if (srcsBad.count(src) != 0) {
+                for (auto n : depsReachableFrom(asst)) {
+                    if (depsBad.count(n) != 0) {
                         assertsBad.insert(asst);
                         break;
                     }
                 }
             }
-            srcsBad.clear();
+            depsBad.clear();
             for (auto asst : assertsBad) {
-                for (auto src : findSrcs.reachableFrom(asst)) {
-                    srcsBad.insert(src);
+                for (auto n : depsReachableFrom(asst)) {
+                    depsBad.insert(n);
                 }
                 asserts.erase(asst);
             }
         }
         return asserts;
     };
-    auto assertsWithOnlySrcs = [&assertsWithoutSrcs](std::set<SRC_node*> srcsGood, std::set<ASSERT_node*> asserts) {
-        for (auto asst : assertsWithoutSrcs(std::move(srcsGood), asserts)) {
+    auto assertsWithOnlyDeps = [&assertsWithoutDeps](std::set<bool_node*> depsGood, std::set<ASSERT_node*> asserts) {
+        for (auto asst : assertsWithoutDeps(std::move(depsGood), asserts)) {
             asserts.erase(asst);
         }
         return asserts;
     };
 
-    std::set<ASSERT_node*> asserts01prime = assertsWithoutSrcs(std::move(srcsN), std::move(asserts01));
+    std::set<ASSERT_node*> asserts01prime = assertsWithoutDeps(std::move(depsN), std::move(asserts01));
     std::set<ASSERT_node*> asserts0prime;
     std::map<std::string, std::set<ASSERT_node*> > assertsByFun;
     for (auto asst : asserts01prime) {
@@ -862,12 +876,12 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     //       callee                call                 caller
     std::map<std::string, std::map<UFUN_node*, std::set<ASSERT_node*> > > facts;
     for (const auto &f : assertsByFun) {
-        std::set<SRC_node*> srcsInG;
+        std::set<bool_node*> depsInG;
         for (const auto &g : assertsByFun) {
             if (g.first != f.first) {
                 for (auto asst : g.second) {
-                    for (auto src : findSrcs.reachableFrom(asst)) {
-                        srcsInG.insert(src);
+                    for (auto n : depsReachableFrom(asst)) {
+                        depsInG.insert(n);
                     }
                 }
             }
@@ -876,21 +890,21 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         for (auto asst : asserts0prime) {
             assertCandidates.insert(asst);
         }
-        std::set<SRC_node*> srcsInF;
+        std::set<bool_node*> depsInF;
         std::set<ASSERT_node*> asserts0f;
-        for (auto asst : assertsWithoutSrcs(std::move(srcsInG), std::move(assertCandidates))) {
+        for (auto asst : assertsWithoutDeps(std::move(depsInG), std::move(assertCandidates))) {
             auto ufs = findUfuns.reachableFrom(asst);
             Assert(ufs.size () <= 1, "An assert with multiple calls leaked through");
             if (ufs.empty()) {
                 asserts0f.insert(asst);
             } else if (ufs.size() == 1) {
                 facts[f.first][(*ufs.begin())].insert(asst);
-                for (auto src : findSrcs.reachableFrom(asst)) {
-                    srcsInF.insert(src);
+                for (auto n : depsReachableFrom(asst)) {
+                    depsInF.insert(n);
                 }
             }
         }
-        asserts0f = assertsWithOnlySrcs(std::move(srcsInF), std::move(asserts0f));
+        asserts0f = assertsWithOnlyDeps(std::move(depsInF), std::move(asserts0f));
         for (auto asst : asserts0f) {
             facts[f.first][nullptr].insert(asst);
         }
@@ -997,7 +1011,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                     // Clone assert body up to the call site
                     bool_node *formula = cloner.clone_node(assert->mother);
                     bool_node *pre = cloner.clone_node(call->mother);
-                    for (ASSERT_node *dep : assertsWithOnlySrcs(findSrcs.reachableFrom(assert), dependentAsserts)) {
+                    for (ASSERT_node *dep : assertsWithOnlyDeps(depsReachableFrom(assert), dependentAsserts)) {
                         pre = mkNode(bool_node::AND, cloner.clone_node(dep->mother), pre);
                     }
 
