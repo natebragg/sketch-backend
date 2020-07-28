@@ -770,6 +770,11 @@ DirectedGraph<std::string> callGraph(const std::map<std::string, BooleanDAG*> &f
     return g;
 }
 
+bool operator<(const spskpair &lhs, const spskpair &rhs) {
+    return std::make_tuple(lhs.spec, lhs.sketch, lhs.file) <
+           std::make_tuple(rhs.spec, rhs.sketch, rhs.file);
+}
+
 void InterpreterEnvironment::rewriteUninterpretedMocks() {
     // Phase 0: identify the methods that will be mocked, and the methods that will
     // be analyzed to produce those mocks.
@@ -1066,7 +1071,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
         }
     } redirect;
     redirect.renames = mockMap;
-    std::vector<spskpair> newSpskpairs;
+    std::map<spskpair, std::vector<spskpair> > newSpskpairs;
 
     // say you have f, g, a, hf, hg, ha, s.t.
     //          f -> g, g -> f, hf -> f, hg -> g, a -> {f, g}, ha -> a
@@ -1112,21 +1117,25 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             if (sketchRewrite != renamesPrime.end()) {
                 const std::string &spec = specRewrite == renamesPrime.end() ? pair.spec : specRewrite->second;
                 mockLog << "; (" << spec << ", " << sketchRewrite->second << ")";
-                newSpskpairs.emplace_back(spec, sketchRewrite->second);
+                newSpskpairs[pair].emplace_back(spec, sketchRewrite->second);
             }
         }
         redirect.renames = std::move(renamesPrime);
         mockLog << "\n";
     }
 
-    for (const spskpair &pair : spskpairs) {
-        newSpskpairs.push_back(pair);
+    std::vector<spskpair> updatedSpskpairs;
+    updatedSpskpairs.reserve(spskpairs.size());
+    for (spskpair &pair : spskpairs) {
+        auto pairs = newSpskpairs.find(pair);
+        if (pairs != newSpskpairs.end()) {
+            for (spskpair &pair : pairs->second) {
+                updatedSpskpairs.push_back(std::move(pair));
+            }
+        }
+        updatedSpskpairs.push_back(pair);
     }
-    spskpairs.clear();
-    spskpairs.reserve(newSpskpairs.size());
-    for (spskpair &pair : newSpskpairs) {
-        spskpairs.push_back(std::move(pair));
-    }
+    spskpairs = std::move(updatedSpskpairs);
 
     if (params.verbosity > 7) {
         std::cout << mockLog.str();
