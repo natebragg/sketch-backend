@@ -121,7 +121,7 @@ class PrettyDag : public NodeVisitor {
 public:
     static std::string pretty(OutType *ot, int size = -1);
     static std::string pretty(bool_node *n);
-    static std::string pretty(const std::string &name, BooleanDAG &bdag);
+    static std::string pretty(BooleanDAG &bdag);
 
     std::string show();
     void process(BooleanDAG &bdag) override;

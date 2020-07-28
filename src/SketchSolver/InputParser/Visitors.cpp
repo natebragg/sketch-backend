@@ -105,24 +105,9 @@ std::string PrettyDag::pretty(bool_node *n) {
     return p.show();
 }
 
-std::string PrettyDag::pretty(const std::string &name, BooleanDAG &bdag) {
+std::string PrettyDag::pretty(BooleanDAG &bdag) {
     PrettyDag p;
-    std::string def = bdag.isModel ? "mdl_def" : "def";
-    p.stmts << def << " " << name << "(";
-    std::string sep = "";
-    for (auto n : bdag.getNodesByType(bool_node::SRC)) {
-        SRC_node *m = dynamic_cast<SRC_node*>(n);
-        p.stmts << sep << pretty(m->getOtype(), m->getArrSz()) << " " << m->lid();
-        sep = " , ";
-    }
-    for (auto n : bdag.getNodesByType(bool_node::DST)) {
-        DST_node *m = dynamic_cast<DST_node*>(n);
-        p.stmts << sep << "! NOREC " << m->lid();
-        sep = " , ";
-    }
-    p.stmts << "){\n";
     p.process(bdag);
-    p.stmts << "}\n";
     return p.show();
 }
 
@@ -132,12 +117,30 @@ std::string PrettyDag::show() {
 }
 
 void PrettyDag::process(BooleanDAG &bdag) {
-    for (auto *n : bdag.getNodesByType(bool_node::ASSERT)) {
-        n->accept(*this);
+    std::string def = bdag.isModel ? "mdl_def" : "def";
+    stmts << def << " " << bdag.get_name() << "(";
+    std::string sep = "";
+    for (auto n : bdag.getNodesByType(bool_node::SRC)) {
+        SRC_node *m = dynamic_cast<SRC_node*>(n);
+        stmts << sep << pretty(m->getOtype(), m->getArrSz()) << " " << m->lid();
+        sep = " , ";
     }
-    for (auto *n : bdag.getNodesByType(bool_node::DST)) {
-        n->accept(*this);
+    for (auto n : bdag.getNodesByType(bool_node::DST)) {
+        DST_node *m = dynamic_cast<DST_node*>(n);
+        stmts << sep << "! NOREC " << m->lid();
+        sep = " , ";
     }
+    stmts << "){\n";
+    for (auto *n : bdag) {
+        if (isDllnode(n)) {
+            n->accept(*this);
+        }
+    }
+    while (exps.size() > 0) {
+        std::get<1>(exps.top()) = true; //force spill
+        std::string garbage = popExp();
+    }
+    stmts << "}\n";
 }
 
 std::string PrettyDag::popExp() {

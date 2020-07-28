@@ -1153,7 +1153,7 @@ int InterpreterEnvironment::doallpairs() {
 	}
 	if (params.verbosity > 8) {
 		for (const auto &fun : functionMap) {
-			std::cout << PrettyDag::pretty(fun.first, *fun.second);
+			std::cout << PrettyDag::pretty(*fun.second);
 		}
 	}
 
