@@ -449,31 +449,31 @@ void DagElimUFUN::process(BooleanDAG& dag){
 	int k=0;
 	// Dout( dag.print(cout) );
 
-	for(int i=0; i<dag.size(); ++i ){
-		bool_node* nn = dag[i];
-		if(nn->type == bool_node::UFUN){
-			UFUN_node* uf = (UFUN_node*)nn;
-			bool elim = false;
-			for(auto ret : dynamic_cast<Tuple*>(uf->getOtype())->entries) {
-				if( ret->isTuple || ret->isArr ){
-					elim = true;
-					break;
-				}
+	for(auto *nn : dag.getNodesByType(bool_node::UFUN)) {
+		UFUN_node* uf = (UFUN_node*)nn;
+		bool elim = false;
+		for(auto ret : dynamic_cast<Tuple*>(uf->getOtype())->entries) {
+			if( ret->isTuple || ret->isArr ){
+				elim = true;
+				break;
 			}
-			if (elim) {
-				ufunsToDo.insert(uf->get_ufname());
-				continue;
-			}
+		}
+		if (elim) {
+			ufunsToDo.insert(uf->get_ufname());
+			continue;
+		}
 
-			for(vector<bool_node*>::iterator it = uf->multi_mother.begin(); it != uf->multi_mother.end(); ++it){
-				if( (*it)->getOtype()->isArr ){
-					ufunsToDo.insert(uf->get_ufname());
-					break;
-				}
+		for(vector<bool_node*>::iterator it = uf->multi_mother.begin(); it != uf->multi_mother.end(); ++it){
+			if( (*it)->getOtype()->isArr ){
+				ufunsToDo.insert(uf->get_ufname());
+				break;
 			}
 		}
 	}
 
+	if (ufunsToDo.empty()) {
+		return;
+	}
 
 	Dout( cout<<" BEFORE PROCESS "<<endl );
 	for(int i=0; i<dag.size(); ++i ){
