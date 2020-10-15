@@ -133,14 +133,17 @@ static std::pair<bool_node*, bool_node*> theoryXform(
         }
 
         void visit(TUPLE_R_node&) override {
+            clear(); return;
             Assert(false, "in theoryXform, TUPLE_R should have been rewritten");
         }
 
         void visit(ARR_R_node&) override {
+            clear(); return;
             Assert(false, "in theoryXform, ARR_R should have been rewritten");
         }
 
         void visit(ARRACC_node&) override {
+            clear(); return;
             Assert(false, "in theoryXform, ARRACC should have been rewritten");
         }
 
