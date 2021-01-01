@@ -2003,6 +2003,15 @@ bool DagOptim::optimizeMMsize2(ARRACC_node& node){
 }
 
 void DagOptim::visit( ARRACC_node& node ){
+	for(bool_node *entry : node.multi_mother) {
+		CTRL_node *cn = dynamic_cast<CTRL_node*>(entry);
+		if(cn && cn->get_Angelic() && !cn->spAngelic) {
+			// No optimizing with normal angelic contents
+			// That is taken care of in NodeHardcoder.
+			rvalue = &node;
+			return;
+		}
+	}
     
 	if( isConst(node.mother) ){
         
