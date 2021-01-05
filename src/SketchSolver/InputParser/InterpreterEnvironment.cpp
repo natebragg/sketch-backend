@@ -819,7 +819,9 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             deps.insert(n);
         }
         for (auto n : findCtrls.reachableFrom(asst)) {
-            deps.insert(n);
+            if (!dynamic_cast<CTRL_node*>(n)->get_Pcond()) {
+                deps.insert(n);
+            }
         }
         return deps;
     };
