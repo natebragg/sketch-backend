@@ -793,7 +793,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
             }
             for (auto node : fun->second->getNodesByType(bool_node::ASSERT)) {
                 ASSERT_node *an = dynamic_cast<ASSERT_node*>(node);
-                if(an->isNormal()) {
+                if(an->isNormal() || an->isAssume()) {
                     asserts.insert(an);
                 }
             }
@@ -1019,6 +1019,11 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                     bool_node *formula = cloner.clone_node(assert->mother);
                     bool_node *pre = cloner.clone_node(call->mother);
                     for (ASSERT_node *dep : assertsWithOnlyDeps(depsReachableFrom(assert), dependentAsserts)) {
+                        if (dep->isAssume() && assert->id < dep->id) {
+                            // For assumes, original position within the sketch is semantically significant.
+                            // Disregard all dependent assumes stated after the assert under consideration.
+                            continue;
+                        }
                         pre = mkNode(bool_node::AND, cloner.clone_node(dep->mother), pre);
                     }
 
