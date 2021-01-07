@@ -149,6 +149,20 @@ std::string PrettyDag::popExp() {
     std::string v;
     std::tie(n, spill, v) = std::move(exps.top());
     exps.pop();
+
+    int limit = 12;
+    std::function<void(bool_node&)> count_decendents = [&](bool_node &m) {
+        if(limit > 0) {
+            limit--;
+            if(vars.count(&m) == 0) {
+                m.accept(ParentVisitor(FunVisitor(count_decendents)));
+            }
+        }
+    };
+    count_decendents(*n);
+    bool too_big = n->children.size() > 1 && limit == 0;
+    spill = spill || too_big; // force spill
+
     auto i = vars.find(n);
     if(i != vars.end()) {
         v = i->second;
