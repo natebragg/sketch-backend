@@ -1156,7 +1156,11 @@ int InterpreterEnvironment::doallpairs() {
 	SATSolver::SATSolverResult result = SATSolver::UNDETERMINED;
 
 	if(params.mock) {
+		timerclass mocktimer("Mock construction");
+		mocktimer.start();
 		rewriteUninterpretedMocks();
+		mocktimer.stop();
+		mocktimer.print("time");
 	}
 	if (params.verbosity > 8) {
 		for (const auto &fun : functionMap) {
