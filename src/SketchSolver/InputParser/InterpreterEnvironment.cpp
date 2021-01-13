@@ -1094,6 +1094,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     int mockDepth = params.mockDepth;
     std::stringstream mockLog;
     mockLog << "maximum mockDepth " << mockDepth << "\n";
+    int newHarnessCount = 0;
     for (int i = 0; i < mockDepth; ++i) {
         mockLog << "mockDepth " << i;
         std::map<std::string, std::string> renamesPrime;
@@ -1125,6 +1126,7 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
                 const std::string &spec = specRewrite == renamesPrime.end() ? pair.spec : specRewrite->second;
                 mockLog << "; (" << spec << ", " << sketchRewrite->second << ")";
                 newSpskpairs[pair].emplace_back(spec, sketchRewrite->second);
+                newHarnessCount++;
             }
         }
         redirect.renames = std::move(renamesPrime);
@@ -1132,7 +1134,8 @@ void InterpreterEnvironment::rewriteUninterpretedMocks() {
     }
 
     std::vector<spskpair> updatedSpskpairs;
-    updatedSpskpairs.reserve(spskpairs.size());
+    int updatedHarnessCount = newHarnessCount + spskpairs.size();
+    updatedSpskpairs.reserve(updatedHarnessCount);
     for (spskpair &pair : spskpairs) {
         auto pairs = newSpskpairs.find(pair);
         if (pairs != newSpskpairs.end()) {
